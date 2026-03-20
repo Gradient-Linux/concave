@@ -6,7 +6,7 @@ JupyterLab frontend for the Boosting suite.
 
 ## Image
 
-- `jupyter/base-notebook:4.0`
+- `quay.io/jupyter/base-notebook:python-3.11.6`
 
 ## Ports
 

@@ -6,7 +6,7 @@ JupyterLab container for GPU-assisted notebook workflows in the Neural suite.
 
 ## Image
 
-- `jupyter/base-notebook:4.0`
+- `quay.io/jupyter/base-notebook:python-3.11.6`
 
 ## Ports
 

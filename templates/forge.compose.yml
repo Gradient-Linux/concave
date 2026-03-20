@@ -16,7 +16,7 @@ services:
     networks: ["{{COMPOSE_NETWORK}}"]
 
   gradient-boost-lab:
-    image: jupyter/base-notebook:4.0
+    image: quay.io/jupyter/base-notebook:python-3.11.6
     restart: unless-stopped
     profiles: ["disabled"]
     ports:
@@ -68,7 +68,7 @@ services:
     networks: ["{{COMPOSE_NETWORK}}"]
 
   gradient-neural-lab:
-    image: jupyter/base-notebook:4.0
+    image: quay.io/jupyter/base-notebook:python-3.11.6
     restart: unless-stopped
     profiles: ["disabled"]
     ports:

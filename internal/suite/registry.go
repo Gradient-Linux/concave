@@ -39,7 +39,7 @@ var registry = map[string]Suite{
 		Name: "boosting",
 		Containers: []Container{
 			{Name: "gradient-boost-core", Image: "python:3.12-slim", Role: "Core ML"},
-			{Name: "gradient-boost-lab", Image: "jupyter/base-notebook:4.0", Role: "JupyterLab"},
+			{Name: "gradient-boost-lab", Image: "quay.io/jupyter/base-notebook:python-3.11.6", Role: "JupyterLab"},
 			{Name: "gradient-boost-track", Image: "ghcr.io/mlflow/mlflow:2.14", Role: "MLflow"},
 		},
 		Ports: []PortMapping{
@@ -61,7 +61,7 @@ var registry = map[string]Suite{
 		Containers: []Container{
 			{Name: "gradient-neural-torch", Image: "pytorch/pytorch:2.6.0-cuda12.4-cudnn9-runtime", Role: "Training"},
 			{Name: "gradient-neural-infer", Image: "nvidia/cuda:12.4-runtime-ubuntu24.04", Role: "Inference"},
-			{Name: "gradient-neural-lab", Image: "jupyter/base-notebook:4.0", Role: "JupyterLab"},
+			{Name: "gradient-neural-lab", Image: "quay.io/jupyter/base-notebook:python-3.11.6", Role: "JupyterLab"},
 		},
 		Ports: []PortMapping{
 			{Port: 8000, Service: "vLLM API"},

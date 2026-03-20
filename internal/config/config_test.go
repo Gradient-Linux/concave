@@ -47,7 +47,7 @@ func TestVersionsRoundTripAndSwap(t *testing.T) {
 
 	versions := Versions{}
 	SetImageVersion(versions, "boosting", "gradient-boost-core", "python:3.12-slim", "")
-	SetImageVersion(versions, "boosting", "gradient-boost-lab", "jupyter/base-notebook:4.0", "jupyter/base-notebook:3.0")
+	SetImageVersion(versions, "boosting", "gradient-boost-lab", "quay.io/jupyter/base-notebook:python-3.11.6", "quay.io/jupyter/base-notebook:python-3.10.13")
 	if err := SaveVersions(versions); err != nil {
 		t.Fatalf("SaveVersions() error = %v", err)
 	}

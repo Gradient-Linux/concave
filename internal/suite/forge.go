@@ -13,11 +13,11 @@ import (
 
 var forgeComponents = []Container{
 	{Name: "gradient-boost-core", Image: "python:3.12-slim", Role: "Boosting core"},
-	{Name: "gradient-boost-lab", Image: "jupyter/base-notebook:4.0", Role: "Boosting lab"},
+	{Name: "gradient-boost-lab", Image: "quay.io/jupyter/base-notebook:python-3.11.6", Role: "Boosting lab"},
 	{Name: "gradient-boost-track", Image: "ghcr.io/mlflow/mlflow:2.14", Role: "Boosting MLflow"},
 	{Name: "gradient-neural-torch", Image: "pytorch/pytorch:2.6.0-cuda12.4-cudnn9-runtime", Role: "Neural torch"},
 	{Name: "gradient-neural-infer", Image: "nvidia/cuda:12.4-runtime-ubuntu24.04", Role: "Neural infer"},
-	{Name: "gradient-neural-lab", Image: "jupyter/base-notebook:4.0", Role: "Neural lab"},
+	{Name: "gradient-neural-lab", Image: "quay.io/jupyter/base-notebook:python-3.11.6", Role: "Neural lab"},
 	{Name: "gradient-flow-mlflow", Image: "ghcr.io/mlflow/mlflow:2.14", Role: "Flow MLflow"},
 	{Name: "gradient-flow-airflow", Image: "apache/airflow:2.9.0", Role: "Flow Airflow"},
 	{Name: "gradient-flow-prometheus", Image: "prom/prometheus:v2.51.0", Role: "Flow Prometheus"},
