@@ -1,0 +1,21 @@
+project_name: concave
+
+builds:
+  - id: concave
+    main: .
+    binary: concave
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w -X main.Version={{.Version}}
+
+archives:
+  - formats: [tar.gz]
+
+changelog:
+  use: git
