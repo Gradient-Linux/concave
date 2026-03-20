@@ -3,7 +3,7 @@ package cmd
 import (
 	"os"
 
-	"github.com/gradientlinux/concave/internal/ui"
+	"github.com/gradient-linux/concave/internal/ui"
 	"github.com/spf13/cobra"
 )
 

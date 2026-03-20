@@ -7,7 +7,7 @@ import (
 	"os/exec"
 	"time"
 
-	"github.com/gradientlinux/concave/internal/suite"
+	"github.com/gradient-linux/concave/internal/suite"
 	"github.com/spf13/cobra"
 )
 

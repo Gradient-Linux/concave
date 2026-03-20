@@ -8,7 +8,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/gradientlinux/concave/internal/ui"
+	"github.com/gradient-linux/concave/internal/ui"
 )
 
 var forgeComponents = []Container{

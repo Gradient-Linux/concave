@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gradientlinux/concave/internal/config"
-	"github.com/gradientlinux/concave/internal/suite"
-	"github.com/gradientlinux/concave/internal/workspace"
+	"github.com/gradient-linux/concave/internal/config"
+	"github.com/gradient-linux/concave/internal/suite"
+	"github.com/gradient-linux/concave/internal/workspace"
 )
 
 const composeNetwork = "gradient-network"

@@ -6,12 +6,12 @@ import (
 	"os"
 	"time"
 
-	"github.com/gradientlinux/concave/internal/config"
-	"github.com/gradientlinux/concave/internal/docker"
-	"github.com/gradientlinux/concave/internal/suite"
-	"github.com/gradientlinux/concave/internal/system"
-	"github.com/gradientlinux/concave/internal/ui"
-	"github.com/gradientlinux/concave/internal/workspace"
+	"github.com/gradient-linux/concave/internal/config"
+	"github.com/gradient-linux/concave/internal/docker"
+	"github.com/gradient-linux/concave/internal/suite"
+	"github.com/gradient-linux/concave/internal/system"
+	"github.com/gradient-linux/concave/internal/ui"
+	"github.com/gradient-linux/concave/internal/workspace"
 	"github.com/spf13/cobra"
 )
 

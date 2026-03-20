@@ -198,7 +198,7 @@ Phase 8 — Release         Documentation Agent + PM Agent cut v0.1.0
 ```
 concave/
   main.go                        # Core Agent
-  go.mod                         # Module: github.com/gradientlinux/concave
+  go.mod                         # Module: github.com/gradient-linux/concave
   go.sum
   AGENTS.md                      # This file
   README.md                      # Documentation Agent
@@ -273,6 +273,9 @@ concave/
     concave-reference.md
     gpu-setup.md
     suite-guide.md
+  services/                      # Service-local READMEs
+    <service-name>/
+      README.md
 ```
 
 ---

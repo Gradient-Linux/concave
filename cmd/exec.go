@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gradientlinux/concave/internal/docker"
-	"github.com/gradientlinux/concave/internal/suite"
+	"github.com/gradient-linux/concave/internal/docker"
+	"github.com/gradient-linux/concave/internal/suite"
 	"github.com/spf13/cobra"
 )
 

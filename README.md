@@ -55,7 +55,7 @@ go build -o concave .
 - Flow: MLOps stack with orchestration, tracking, storage, and observability
 - Forge: Custom composition of services from the other suites
 
-Suite docs live under [docs/suites](docs/suites). Service docs live under [docs/services](docs/services).
+Suite docs live under [docs/suites](docs/suites). Service docs now live directly under [services](services), with one `README.md` per service directory.
 
 ## Command Reference
 

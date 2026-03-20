@@ -3,7 +3,7 @@ package config
 import (
 	"testing"
 
-	"github.com/gradientlinux/concave/internal/workspace"
+	"github.com/gradient-linux/concave/internal/workspace"
 )
 
 func TestStateRoundTrip(t *testing.T) {

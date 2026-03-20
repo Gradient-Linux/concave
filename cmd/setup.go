@@ -3,10 +3,10 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/gradientlinux/concave/internal/gpu"
-	"github.com/gradientlinux/concave/internal/suite"
-	"github.com/gradientlinux/concave/internal/ui"
-	"github.com/gradientlinux/concave/internal/workspace"
+	"github.com/gradient-linux/concave/internal/gpu"
+	"github.com/gradient-linux/concave/internal/suite"
+	"github.com/gradient-linux/concave/internal/ui"
+	"github.com/gradient-linux/concave/internal/workspace"
 	"github.com/spf13/cobra"
 )
 

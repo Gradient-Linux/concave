@@ -5,8 +5,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/gradientlinux/concave/internal/config"
-	"github.com/gradientlinux/concave/internal/suite"
+	"github.com/gradient-linux/concave/internal/config"
+	"github.com/gradient-linux/concave/internal/suite"
 )
 
 // PortConflict describes a detected suite port collision.

@@ -1,6 +1,6 @@
 package gpu
 
-import "github.com/gradientlinux/concave/internal/ui"
+import "github.com/gradient-linux/concave/internal/ui"
 
 // DetectAMD reports an AMD GPU state and emits the v0.3 support warning.
 func DetectAMD() GPUState {

@@ -1,6 +1,6 @@
 package main
 
-import "github.com/gradientlinux/concave/cmd"
+import "github.com/gradient-linux/concave/cmd"
 
 // Version is injected at build time.
 var Version = "dev"

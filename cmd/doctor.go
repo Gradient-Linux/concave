@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/gradientlinux/concave/internal/system"
-	"github.com/gradientlinux/concave/internal/ui"
-	"github.com/gradientlinux/concave/internal/workspace"
+	"github.com/gradient-linux/concave/internal/system"
+	"github.com/gradient-linux/concave/internal/ui"
+	"github.com/gradient-linux/concave/internal/workspace"
 	"github.com/spf13/cobra"
 )
 
