@@ -4,9 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/gradient-linux/concave/internal/docker"
-	"github.com/gradient-linux/concave/internal/ui"
-	"github.com/gradient-linux/concave/internal/workspace"
+	"github.com/Gradient-Linux/concave/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -23,7 +21,7 @@ var stopCmd = &cobra.Command{
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer cancel()
 		for _, name := range names {
-			if err := docker.ComposeDown(ctx, workspace.ComposePath(name)); err != nil {
+			if err := dockerComposeDown(ctx, workspaceComposePath(name)); err != nil {
 				return err
 			}
 			ui.Pass("Stopped", name)

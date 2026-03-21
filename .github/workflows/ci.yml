@@ -17,7 +17,32 @@ jobs:
       - run: go test ./...
       - run: go test -race ./...
       - run: go vet ./...
+      - run: go test ./... -coverprofile=cover.out
+      - run: |
+          total=$(go tool cover -func=cover.out | awk '/^total:/ {gsub("%","",$3); print $3}')
+          echo "total coverage: ${total}%"
+          awk -v total="$total" 'BEGIN { exit (total >= 80 ? 0 : 1) }'
+      - run: |
+          go test -cover ./... | tee package-cover.out
+          awk '
+            /coverage: [0-9.]+% of statements/ {
+              match($0, /coverage: ([0-9.]+)% of statements/, m)
+              cov = m[1] + 0
+              pkg = $2
+              print pkg ": " cov "%"
+              if (cov < 60) {
+                bad = 1
+                print "package below 60% coverage: " pkg > "/dev/stderr"
+              }
+            }
+            END { exit bad }
+          ' package-cover.out
+      - run: go test ./tests/benchmarks -run '^$' -bench . -benchtime=1x
       - run: CGO_ENABLED=0 go build -o concave .
+      - run: |
+          size=$(stat -c%s concave)
+          echo "binary size: ${size} bytes"
+          test "$size" -le 20000000
       - run: |
           if command -v golangci-lint >/dev/null 2>&1; then
             golangci-lint run ./...

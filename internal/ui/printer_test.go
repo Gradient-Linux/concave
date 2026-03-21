@@ -2,6 +2,7 @@ package ui
 
 import (
 	"bytes"
+	"os"
 	"strings"
 	"testing"
 )
@@ -38,5 +39,48 @@ func TestSpinnerStartStop(t *testing.T) {
 
 	if !strings.Contains(buf.String(), "Pulling") {
 		t.Fatalf("expected spinner output, got %q", buf.String())
+	}
+}
+
+func TestHeaderConfirmAndChecklist(t *testing.T) {
+	var buf bytes.Buffer
+	SetOutput(&buf)
+	defer ResetOutput()
+
+	Header("Title")
+	if !strings.Contains(buf.String(), "Title") {
+		t.Fatalf("expected header output, got %q", buf.String())
+	}
+
+	oldStdin := os.Stdin
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("Pipe() error = %v", err)
+	}
+	if _, err := w.WriteString("yes\n"); err != nil {
+		t.Fatalf("WriteString() error = %v", err)
+	}
+	_ = w.Close()
+	os.Stdin = r
+	if !Confirm("Proceed?") {
+		t.Fatal("expected Confirm to accept yes")
+	}
+	_ = r.Close()
+
+	r, w, err = os.Pipe()
+	if err != nil {
+		t.Fatalf("Pipe() error = %v", err)
+	}
+	if _, err := w.WriteString("2, 1, 2, 9\n"); err != nil {
+		t.Fatalf("WriteString() error = %v", err)
+	}
+	_ = w.Close()
+	os.Stdin = r
+	selected := Checklist([]string{"boosting", "flow"})
+	_ = r.Close()
+	os.Stdin = oldStdin
+
+	if len(selected) != 2 || selected[0] != "flow" || selected[1] != "boosting" {
+		t.Fatalf("Checklist() = %#v", selected)
 	}
 }

@@ -3,10 +3,8 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/gradient-linux/concave/internal/gpu"
-	"github.com/gradient-linux/concave/internal/suite"
-	"github.com/gradient-linux/concave/internal/ui"
-	"github.com/gradient-linux/concave/internal/workspace"
+	"github.com/Gradient-Linux/concave/internal/gpu"
+	"github.com/Gradient-Linux/concave/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -15,12 +13,12 @@ var setupCmd = &cobra.Command{
 	Short: "Run the first-boot concave setup wizard",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ui.Header("Gradient Linux — concave setup")
-		if err := workspace.EnsureLayout(); err != nil {
+		if err := ensureWorkspaceLayout(); err != nil {
 			return err
 		}
-		ui.Pass("Workspace", workspace.Root())
+		ui.Pass("Workspace", workspaceRoot())
 
-		state, err := gpu.Detect()
+		state, err := gpuDetectState()
 		if err != nil {
 			return err
 		}
@@ -31,7 +29,7 @@ var setupCmd = &cobra.Command{
 			}
 		}
 
-		selected := ui.Checklist(suite.Names())
+		selected := ui.Checklist(suiteNames())
 		if len(selected) == 0 {
 			selected = []string{"boosting"}
 		}

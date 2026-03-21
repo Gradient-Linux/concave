@@ -3,10 +3,10 @@ package benchmarks
 import (
 	"testing"
 
-	"github.com/gradient-linux/concave/internal/config"
-	"github.com/gradient-linux/concave/internal/docker"
-	"github.com/gradient-linux/concave/internal/suite"
-	"github.com/gradient-linux/concave/internal/workspace"
+	"github.com/Gradient-Linux/concave/internal/config"
+	"github.com/Gradient-Linux/concave/internal/docker"
+	"github.com/Gradient-Linux/concave/internal/suite"
+	"github.com/Gradient-Linux/concave/internal/workspace"
 )
 
 func BenchmarkSuiteLookup(b *testing.B) {

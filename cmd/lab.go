@@ -3,14 +3,10 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"os/exec"
 	"regexp"
 	"strings"
 	"time"
 
-	"github.com/gradient-linux/concave/internal/config"
-	"github.com/gradient-linux/concave/internal/suite"
-	"github.com/gradient-linux/concave/internal/system"
 	"github.com/spf13/cobra"
 )
 
@@ -28,20 +24,20 @@ var labCmd = &cobra.Command{
 			name = labSuite
 		}
 
-		s, err := suite.Get(name)
+		s, err := getSuite(name)
 		if err != nil {
 			return err
 		}
-		container, ok := suite.JupyterContainer(s)
+		container, ok := jupyterContainer(s)
 		if !ok {
 			return fmt.Errorf("suite %s has no JupyterLab service", s.Name)
 		}
 
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer cancel()
-		out, err := exec.CommandContext(ctx, "docker", "exec", container, "jupyter", "server", "list").CombinedOutput()
+		out, err := runDockerOutput(ctx, "exec", container, "jupyter", "server", "list")
 		if err != nil {
-			out, err = exec.CommandContext(ctx, "docker", "logs", container).CombinedOutput()
+			out, err = runDockerOutput(ctx, "logs", container)
 			if err != nil {
 				return fmt.Errorf("resolve Jupyter token for %s: %w", container, err)
 			}
@@ -51,21 +47,21 @@ var labCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		return system.OpenURL(url)
+		return systemOpenURL(url)
 	},
 }
 
 func chooseLabSuite() (string, error) {
-	state, err := config.LoadState()
+	state, err := loadState()
 	if err != nil {
 		return "", err
 	}
 	for _, name := range state.Installed {
-		s, err := suite.Get(name)
+		s, err := getSuite(name)
 		if err != nil {
 			return "", err
 		}
-		if _, ok := suite.JupyterContainer(s); ok {
+		if _, ok := jupyterContainer(s); ok {
 			return name, nil
 		}
 	}

@@ -4,11 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/gradient-linux/concave/internal/config"
-	"github.com/gradient-linux/concave/internal/docker"
-	"github.com/gradient-linux/concave/internal/suite"
-	"github.com/gradient-linux/concave/internal/ui"
-	"github.com/gradient-linux/concave/internal/workspace"
+	"github.com/Gradient-Linux/concave/internal/suite"
+	"github.com/Gradient-Linux/concave/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -22,26 +19,26 @@ var rollbackCmd = &cobra.Command{
 			return err
 		}
 
-		versions, err := config.LoadVersions()
+		versions, err := loadVersions()
 		if err != nil {
 			return err
 		}
-		if err := config.SwapPrevious(versions, s.Name); err != nil {
+		if err := swapPreviousVersions(versions, s.Name); err != nil {
 			return err
 		}
-		if err := config.SaveVersions(versions); err != nil {
+		if err := saveVersions(versions); err != nil {
 			return err
 		}
 
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer cancel()
-		if _, err := docker.WriteSuiteCompose(ctx, s); err != nil {
+		if _, err := dockerWriteSuiteCompose(ctx, s); err != nil {
 			return err
 		}
-		if err := docker.ComposeDown(ctx, workspace.ComposePath(s.Name)); err != nil {
+		if err := dockerComposeDown(ctx, workspaceComposePath(s.Name)); err != nil {
 			return err
 		}
-		if err := docker.ComposeUp(ctx, workspace.ComposePath(s.Name), true); err != nil {
+		if err := dockerComposeUp(ctx, workspaceComposePath(s.Name), true); err != nil {
 			return err
 		}
 		ui.Pass("Rollback", s.Name)

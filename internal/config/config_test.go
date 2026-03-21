@@ -3,7 +3,7 @@ package config
 import (
 	"testing"
 
-	"github.com/gradient-linux/concave/internal/workspace"
+	"github.com/Gradient-Linux/concave/internal/workspace"
 )
 
 func TestStateRoundTrip(t *testing.T) {
@@ -61,5 +61,18 @@ func TestVersionsRoundTripAndSwap(t *testing.T) {
 	}
 	if err := SwapPrevious(loaded, "boosting"); err == nil {
 		t.Fatal("expected swap error when previous tag is missing")
+	}
+
+	SetImageVersion(loaded, "boosting", "gradient-boost-core", "python:3.12-slim", "python:3.11-slim")
+	if err := SwapPrevious(loaded, "boosting"); err != nil {
+		t.Fatalf("SwapPrevious() error = %v", err)
+	}
+	version, ok := GetImageVersion(loaded, "boosting", "gradient-boost-core")
+	if !ok || version.Current != "python:3.11-slim" || version.Previous != "python:3.12-slim" {
+		t.Fatalf("unexpected swapped version %#v", version)
+	}
+	RemoveSuiteVersions(loaded, "boosting")
+	if _, ok := GetImageVersion(loaded, "boosting", "gradient-boost-core"); ok {
+		t.Fatal("expected suite versions to be removed")
 	}
 }

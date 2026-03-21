@@ -6,12 +6,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/gradient-linux/concave/internal/config"
-	"github.com/gradient-linux/concave/internal/docker"
-	"github.com/gradient-linux/concave/internal/suite"
-	"github.com/gradient-linux/concave/internal/system"
-	"github.com/gradient-linux/concave/internal/ui"
-	"github.com/gradient-linux/concave/internal/workspace"
+	"github.com/Gradient-Linux/concave/internal/suite"
+	"github.com/Gradient-Linux/concave/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -27,9 +23,9 @@ var removeCmd = &cobra.Command{
 
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer cancel()
-		composePath := workspace.ComposePath(s.Name)
+		composePath := workspaceComposePath(s.Name)
 		if _, err := os.Stat(composePath); err == nil {
-			if err := docker.ComposeDown(ctx, composePath); err != nil {
+			if err := dockerComposeDown(ctx, composePath); err != nil {
 				return err
 			}
 			if err := os.Remove(composePath); err != nil {
@@ -37,18 +33,18 @@ var removeCmd = &cobra.Command{
 			}
 		}
 
-		if err := config.RemoveInstalled(s.Name); err != nil {
+		if err := removeInstalledSuite(s.Name); err != nil {
 			return err
 		}
-		versions, err := config.LoadVersions()
+		versions, err := loadVersions()
 		if err != nil {
 			return err
 		}
-		config.RemoveSuiteVersions(versions, s.Name)
-		if err := config.SaveVersions(versions); err != nil {
+		removeSuiteVersions(versions, s.Name)
+		if err := saveVersions(versions); err != nil {
 			return err
 		}
-		if err := system.Deregister(s); err != nil {
+		if err := systemDeregisterPorts(s); err != nil {
 			return err
 		}
 

@@ -3,8 +3,7 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/gradient-linux/concave/internal/ui"
-	"github.com/gradient-linux/concave/internal/workspace"
+	"github.com/Gradient-Linux/concave/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -19,10 +18,10 @@ var workspaceInitCmd = &cobra.Command{
 	Use:   "init",
 	Short: "Create the ~/gradient workspace tree",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if err := workspace.EnsureLayout(); err != nil {
+		if err := ensureWorkspaceLayout(); err != nil {
 			return fmt.Errorf("workspace init: %w", err)
 		}
-		ui.Pass("Workspace", workspace.Root())
+		ui.Pass("Workspace", workspaceRoot())
 		return nil
 	},
 }
@@ -31,7 +30,7 @@ var workspaceStatusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "Show workspace disk usage",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		usages, err := workspace.Status()
+		usages, err := workspaceStatus()
 		if err != nil {
 			return fmt.Errorf("workspace status: %w", err)
 		}
@@ -49,7 +48,7 @@ var workspaceBackupCmd = &cobra.Command{
 	Use:   "backup",
 	Short: "Backup notebooks and models into ~/gradient/backups",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		path, err := workspace.Backup()
+		path, err := workspaceBackup()
 		if err != nil {
 			return fmt.Errorf("workspace backup: %w", err)
 		}
@@ -65,7 +64,7 @@ var workspaceCleanCmd = &cobra.Command{
 		if !workspaceCleanOutputs {
 			return fmt.Errorf("workspace clean requires --outputs")
 		}
-		if err := workspace.CleanOutputs(); err != nil {
+		if err := workspaceClean(); err != nil {
 			return fmt.Errorf("workspace clean: %w", err)
 		}
 		ui.Pass("Outputs", "cleaned")

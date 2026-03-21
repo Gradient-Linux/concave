@@ -4,9 +4,14 @@ import (
 	"context"
 	"errors"
 	"net"
+	"os"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/Gradient-Linux/concave/internal/config"
+	"github.com/Gradient-Linux/concave/internal/suite"
+	"github.com/Gradient-Linux/concave/internal/workspace"
 )
 
 type mockRunner struct {
@@ -81,5 +86,105 @@ func TestOpenURLFallsBackToGio(t *testing.T) {
 
 	if err := OpenURL("https://example.com"); err != nil {
 		t.Fatalf("OpenURL() error = %v", err)
+	}
+}
+
+func TestChecksErrorAndPortRegistry(t *testing.T) {
+	previousRunner := runner
+	previousDialer := dialContext
+	previousRegistry := portRegistry
+	portRegistry = map[int]portRegistration{}
+	t.Cleanup(func() {
+		runner = previousRunner
+		dialContext = previousDialer
+		portRegistry = previousRegistry
+	})
+
+	runner = &mockRunner{
+		errors: map[string]error{
+			"docker info":                  errors.New("down"),
+			"id -nG":                       errors.New("id failed"),
+			"xdg-open https://example.com": errors.New("missing"),
+			"gio open https://example.com": errors.New("missing"),
+		},
+	}
+
+	if ok, err := DockerRunning(); err == nil || ok {
+		t.Fatalf("DockerRunning() = %v, %v, want wrapped error", ok, err)
+	}
+	if ok, err := UserInDockerGroup(); err == nil || ok {
+		t.Fatalf("UserInDockerGroup() = %v, %v, want wrapped error", ok, err)
+	}
+	dialContext = func(ctx context.Context, network, address string) (net.Conn, error) {
+		return nil, errors.New("offline")
+	}
+	if ok, err := InternetReachable(); err == nil || ok {
+		t.Fatalf("InternetReachable() = %v, %v, want wrapped error", ok, err)
+	}
+	if err := OpenURL("https://example.com"); err == nil {
+		t.Fatal("expected OpenURL to fail when both openers fail")
+	}
+
+	t.Setenv("HOME", t.TempDir())
+	if err := workspace.EnsureLayout(); err != nil {
+		t.Fatalf("EnsureLayout() error = %v", err)
+	}
+	if err := config.SaveState(config.State{Installed: []string{"boosting"}}); err != nil {
+		t.Fatalf("SaveState() error = %v", err)
+	}
+	neural, err := suite.Get("neural")
+	if err != nil {
+		t.Fatalf("suite.Get(neural) error = %v", err)
+	}
+	conflicts := CheckConflicts(neural)
+	if len(conflicts) == 0 {
+		t.Fatal("expected conflicts against installed boosting suite")
+	}
+	if conflicts[0].Port != 8888 {
+		t.Fatalf("unexpected first conflict port %d", conflicts[0].Port)
+	}
+	if err := config.SaveState(config.State{Installed: []string{}}); err != nil {
+		t.Fatalf("SaveState() reset error = %v", err)
+	}
+
+	boosting, err := suite.Get("boosting")
+	if err != nil {
+		t.Fatalf("suite.Get(boosting) error = %v", err)
+	}
+	if err := Register(boosting); err != nil {
+		t.Fatalf("Register(boosting) error = %v", err)
+	}
+	if len(portRegistry) == 0 {
+		t.Fatal("expected in-memory port registry entries")
+	}
+	if err := Deregister(boosting); err != nil {
+		t.Fatalf("Deregister(boosting) error = %v", err)
+	}
+	if len(portRegistry) != 0 {
+		t.Fatalf("expected empty port registry after deregister, got %d", len(portRegistry))
+	}
+
+	path := workspace.ConfigPath("state.json")
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("expected persisted state at %s: %v", path, err)
+	}
+}
+
+func TestExecRunnerAndRunCommand(t *testing.T) {
+	out, err := runCommand("sh", "-c", "printf ok")
+	if err != nil {
+		t.Fatalf("runCommand() error = %v", err)
+	}
+	if string(out) != "ok" {
+		t.Fatalf("runCommand() output = %q", string(out))
+	}
+
+	runner := execRunner{}
+	out, err = runner.Run("sh", "-c", "printf runner")
+	if err != nil {
+		t.Fatalf("execRunner.Run() error = %v", err)
+	}
+	if string(out) != "runner" {
+		t.Fatalf("execRunner.Run() output = %q", string(out))
 	}
 }

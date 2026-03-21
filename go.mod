@@ -1,4 +1,4 @@
-module github.com/gradient-linux/concave
+module github.com/Gradient-Linux/concave
 
 go 1.22
 

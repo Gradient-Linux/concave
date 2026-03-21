@@ -3,9 +3,7 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/gradient-linux/concave/internal/config"
-	"github.com/gradient-linux/concave/internal/suite"
-	"github.com/gradient-linux/concave/internal/ui"
+	"github.com/Gradient-Linux/concave/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -14,18 +12,18 @@ var changelogCmd = &cobra.Command{
 	Short: "Show the diff between active image tags and registry tags",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		s, err := suite.Get(args[0])
+		s, err := getSuite(args[0])
 		if err != nil {
 			return err
 		}
-		versions, err := config.LoadVersions()
+		versions, err := loadVersions()
 		if err != nil {
 			return err
 		}
 
 		ui.Header("Gradient Linux — suite changelog")
 		for _, container := range s.Containers {
-			version, ok := config.GetImageVersion(versions, s.Name, container.Name)
+			version, ok := getImageVersion(versions, s.Name, container.Name)
 			if !ok {
 				ui.Info(container.Name, "not installed yet")
 				continue

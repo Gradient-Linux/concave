@@ -5,10 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gradient-linux/concave/internal/config"
-	"github.com/gradient-linux/concave/internal/docker"
-	"github.com/gradient-linux/concave/internal/suite"
-	"github.com/gradient-linux/concave/internal/ui"
+	"github.com/Gradient-Linux/concave/internal/suite"
+	"github.com/Gradient-Linux/concave/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -16,7 +14,7 @@ var statusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "Show container status for installed suites",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		state, err := config.LoadState()
+		state, err := loadState()
 		if err != nil {
 			return err
 		}
@@ -31,7 +29,7 @@ var statusCmd = &cobra.Command{
 				return err
 			}
 			for _, container := range s.Containers {
-				status, err := docker.ContainerStatus(ctx, container.Name)
+				status, err := dockerContainerStatus(ctx, container.Name)
 				if err != nil {
 					ui.Warn(container.Name, err.Error())
 					continue

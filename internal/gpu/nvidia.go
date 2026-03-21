@@ -64,3 +64,13 @@ func VerifyPassthrough() error {
 	}
 	return nil
 }
+
+// SecureBootEnabled reports whether Secure Boot is enabled on the host.
+func SecureBootEnabled() (bool, error) {
+	out, err := runner.Run("mokutil", "--sb-state")
+	if err != nil {
+		return false, fmt.Errorf("mokutil --sb-state: %w", err)
+	}
+	text := strings.ToLower(string(out))
+	return strings.Contains(text, "secureboot enabled"), nil
+}

@@ -1,14 +1,14 @@
 package suite
 
 import (
-	"bufio"
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 
-	"github.com/gradient-linux/concave/internal/ui"
+	"github.com/Gradient-Linux/concave/internal/ui"
 )
 
 var forgeComponents = []Container{
@@ -41,14 +41,12 @@ func BuildForgeCompose(selected []string) ([]byte, error) {
 		return nil, fmt.Errorf("forge requires at least one selected component")
 	}
 
-	path := filepath.Join("templates", "forge.compose.yml")
-	file, err := os.Open(path)
+	data, err := readForgeTemplate()
 	if err != nil {
-		return nil, fmt.Errorf("open %s: %w", path, err)
+		return nil, err
 	}
-	defer file.Close()
 
-	scanner := bufio.NewScanner(file)
+	scanner := strings.Split(string(data), "\n")
 	var lines []string
 	var block []string
 	var service string
@@ -71,8 +69,7 @@ func BuildForgeCompose(selected []string) ([]byte, error) {
 		service = ""
 	}
 
-	for scanner.Scan() {
-		line := scanner.Text()
+	for _, line := range scanner {
 		switch {
 		case strings.HasPrefix(line, "services:"):
 			inServices = true
@@ -94,10 +91,44 @@ func BuildForgeCompose(selected []string) ([]byte, error) {
 			lines = append(lines, line)
 		}
 	}
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("scan %s: %w", path, err)
-	}
 	flushBlock()
 
 	return []byte(strings.Join(lines, "\n") + "\n"), nil
+}
+
+func readForgeTemplate() ([]byte, error) {
+	candidates := []string{filepath.Join("templates", "forge.compose.yml")}
+
+	if _, sourceFile, _, ok := runtime.Caller(0); ok {
+		repoRoot := filepath.Clean(filepath.Join(filepath.Dir(sourceFile), "..", ".."))
+		candidates = append(candidates, filepath.Join(repoRoot, "templates", "forge.compose.yml"))
+	}
+
+	if executable, err := os.Executable(); err == nil {
+		candidates = append(candidates, filepath.Join(filepath.Dir(executable), "templates", "forge.compose.yml"))
+	}
+
+	var failures []string
+	for _, candidate := range uniqueStrings(candidates) {
+		data, err := os.ReadFile(candidate)
+		if err == nil {
+			return data, nil
+		}
+		failures = append(failures, fmt.Sprintf("%s: %v", candidate, err))
+	}
+
+	return nil, fmt.Errorf("read forge.compose.yml: %s", strings.Join(failures, "; "))
+}
+
+func uniqueStrings(items []string) []string {
+	seen := make(map[string]struct{}, len(items))
+	result := make([]string, 0, len(items))
+	for _, item := range items {
+		if _, ok := seen[item]; ok {
+			continue
+		}
+		seen[item] = struct{}{}
+		result = append(result, item)
+	}
+	return result
 }

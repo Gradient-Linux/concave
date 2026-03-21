@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/gradient-linux/concave/internal/workspace"
+	"github.com/Gradient-Linux/concave/internal/workspace"
 )
 
 // ImageVersion stores the active and previous tag for a container image.

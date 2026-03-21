@@ -9,22 +9,20 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gradient-linux/concave/internal/config"
-	"github.com/gradient-linux/concave/internal/suite"
-	"github.com/gradient-linux/concave/internal/workspace"
+	"github.com/Gradient-Linux/concave/internal/config"
+	"github.com/Gradient-Linux/concave/internal/suite"
+	"github.com/Gradient-Linux/concave/internal/workspace"
 )
 
 const composeNetwork = "gradient-network"
 
+var readTemplateFile = os.ReadFile
+
 // RenderSuiteCompose renders a suite template with workspace and image substitutions.
 func RenderSuiteCompose(s suite.Suite) ([]byte, error) {
-	path, err := templatePath(s.ComposeTemplate)
+	data, err := readTemplate(s.ComposeTemplate)
 	if err != nil {
 		return nil, err
-	}
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("read %s: %w", path, err)
 	}
 
 	rendered := strings.ReplaceAll(string(data), "{{WORKSPACE_ROOT}}", workspace.Root())
@@ -41,6 +39,44 @@ func RenderSuiteCompose(s suite.Suite) ([]byte, error) {
 	}
 
 	return []byte(rendered), nil
+}
+
+func readTemplate(name string) ([]byte, error) {
+	filename := name + ".compose.yml"
+	candidates := []string{filepath.Join("templates", filename)}
+
+	if _, sourceFile, _, ok := runtime.Caller(0); ok {
+		repoRoot := filepath.Clean(filepath.Join(filepath.Dir(sourceFile), "..", ".."))
+		candidates = append(candidates, filepath.Join(repoRoot, "templates", filename))
+	}
+
+	if executable, err := os.Executable(); err == nil {
+		candidates = append(candidates, filepath.Join(filepath.Dir(executable), "templates", filename))
+	}
+
+	var failures []string
+	for _, candidate := range uniqueCandidates(candidates) {
+		data, err := readTemplateFile(candidate)
+		if err == nil {
+			return data, nil
+		}
+		failures = append(failures, fmt.Sprintf("%s: %v", candidate, err))
+	}
+
+	return nil, fmt.Errorf("read template %s: %s", filename, strings.Join(failures, "; "))
+}
+
+func uniqueCandidates(paths []string) []string {
+	seen := make(map[string]struct{}, len(paths))
+	result := make([]string, 0, len(paths))
+	for _, path := range paths {
+		if _, ok := seen[path]; ok {
+			continue
+		}
+		seen[path] = struct{}{}
+		result = append(result, path)
+	}
+	return result
 }
 
 // ValidateCompose validates a rendered compose file path with docker compose config --quiet.
@@ -85,19 +121,4 @@ func WriteRawCompose(ctx context.Context, name string, data []byte) (string, err
 	}
 
 	return path, nil
-}
-
-func templatePath(name string) (string, error) {
-	if _, filename, _, ok := runtime.Caller(0); ok {
-		root := filepath.Clean(filepath.Join(filepath.Dir(filename), "..", ".."))
-		path := filepath.Join(root, "templates", name+".compose.yml")
-		if _, err := os.Stat(path); err == nil {
-			return path, nil
-		}
-	}
-	path := filepath.Join("templates", name+".compose.yml")
-	if _, err := os.Stat(path); err == nil {
-		return path, nil
-	}
-	return "", fmt.Errorf("template %s.compose.yml not found", name)
 }

@@ -1,0 +1,27 @@
+name: performance
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+
+jobs:
+  performance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+      - run: ./scripts/build.sh
+      - run: |
+          size=$(stat -c%s concave)
+          echo "binary size: ${size} bytes"
+          test "$size" -le 20000000
+      - run: |
+          TIMEFORMAT='%R'
+          max=$(for i in 1 2 3 4 5; do { time ./concave --help >/dev/null; } 2>&1; done | awk 'BEGIN {m=0} {if ($1>m) m=$1} END {print m}')
+          echo "max startup: ${max}s"
+          awk -v max="$max" 'BEGIN { exit (max <= 0.2 ? 0 : 1) }'
+      - run: go test ./tests/benchmarks -run '^$' -bench . -benchtime=1x

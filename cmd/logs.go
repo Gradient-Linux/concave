@@ -3,11 +3,8 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"os"
-	"os/exec"
 	"time"
 
-	"github.com/gradient-linux/concave/internal/workspace"
 	"github.com/spf13/cobra"
 )
 
@@ -21,16 +18,12 @@ var logsCmd = &cobra.Command{
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer cancel()
 
-		command := []string{"compose", "-f", workspace.ComposePath(args[0]), "logs", "-f", "--tail=100"}
+		command := []string{"compose", "-f", workspaceComposePath(args[0]), "logs", "-f", "--tail=100"}
 		if logsService != "" {
 			command = append(command, logsService)
 		}
 
-		execCmd := exec.CommandContext(ctx, "docker", command...)
-		execCmd.Stdin = os.Stdin
-		execCmd.Stdout = os.Stdout
-		execCmd.Stderr = os.Stderr
-		if err := execCmd.Run(); err != nil {
+		if err := runDockerInteractive(ctx, command...); err != nil {
 			return fmt.Errorf("docker compose logs %s: %w", args[0], err)
 		}
 		return nil

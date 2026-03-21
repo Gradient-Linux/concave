@@ -1,33 +1,46 @@
 # Gradient Linux — concave
 
-`concave` is the control plane CLI for Gradient Linux, an Ubuntu 24.04 LTS distribution for machine learning engineers and MLOps teams. The host stays thin: Docker plus the `concave` binary. Suites, models, notebooks, and orchestration tooling live inside containers managed by the CLI.
+`concave` is the control-plane CLI for Gradient Linux, an Ubuntu 24.04 LTS distribution
+built for machine learning engineers, data scientists, and MLOps teams. The host stays
+thin: Ubuntu, Docker Engine, and the `concave` binary. Suites, models, notebooks,
+tracking, orchestration, and observability stay inside containers.
 
-## What is this?
+## What This Repo Contains
 
-This repository builds:
-
-- `concave`, a statically compiled Go CLI
-- Docker Compose templates for Boosting, Neural, Flow, and Forge suites
-- Workspace management for `~/gradient/`
-- GPU detection and driver setup logic
-- Operational documentation for every suite and every service container
+- a statically compiled Go CLI
+- Docker Compose templates for Boosting, Neural, Flow, and Forge
+- workspace lifecycle management for `~/gradient/`
+- suite install, start, stop, update, rollback, and status flows
+- GPU detection and NVIDIA driver guidance
+- system and suite documentation
 
 ## Architecture
 
-- `cmd/` contains Cobra commands
-- `internal/ui/` standardizes all terminal output and prompts
-- `internal/system/` checks host prerequisites and opens browsers
-- `internal/workspace/` manages `~/gradient/`
-- `internal/docker/` wraps Docker and Compose
-- `internal/suite/` defines suites and lifecycle helpers
-- `internal/config/` persists state and image versions
-- `internal/gpu/` handles hardware detection and driver guidance
-- `templates/` stores canonical Compose templates
-- `docs/` holds system, suite, and service documentation
+- `cmd/` contains the Cobra command surface
+- `internal/ui/` owns terminal output, spinners, and prompts
+- `internal/system/` checks host prerequisites, browser launch, and shared port logic
+- `internal/workspace/` manages the fixed `~/gradient/` layout
+- `internal/docker/` renders Compose files, validates them, and wraps Docker operations
+- `internal/suite/` defines suite metadata and lifecycle helpers
+- `internal/config/` persists `state.json` and `versions.json`
+- `internal/gpu/` detects GPU state and drives NVIDIA-specific checks
+- `templates/` is a flat directory of the canonical Compose YAML templates
+- `docs/` holds system documentation and suite reference material
+
+## Documentation Layout
+
+The repo follows the layout defined in [AGENTS.md](AGENTS.md):
+
+- system-wide documentation lives in [docs](docs)
+- suite-level documentation lives in [docs/suites](docs/suites)
+- inline godoc lives in the Go source
+
+There is no `services/` documentation tree. Service-level details are part of each suite
+document under `docs/suites/*.md`.
 
 ## Workspace Layout
 
-```
+```text
 ~/gradient/
   data/
   notebooks/
@@ -48,26 +61,20 @@ go build -o concave .
 ./concave workspace init
 ```
 
-## Suites
+## Suite Reference
 
-- Boosting: CPU-first ML workflow with JupyterLab and MLflow
-- Neural: GPU training and inference suite
-- Flow: MLOps stack with orchestration, tracking, storage, and observability
-- Forge: Custom composition of services from the other suites
+- [Boosting](docs/suites/boosting.md): CPU-first experimentation, JupyterLab, MLflow
+- [Neural](docs/suites/neural.md): GPU-oriented training, inference, notebooks
+- [Flow](docs/suites/flow.md): tracking, orchestration, storage, dashboards, serving
+- [Forge](docs/suites/forge.md): user-selected composition of components from other suites
 
-Suite docs live under [docs/suites](docs/suites). Service docs now live directly under [services](services), with one `README.md` per service directory.
-
-## Command Reference
-
-The authoritative CLI reference lives in [docs/concave-reference.md](docs/concave-reference.md).
-
-## GPU Setup
-
-GPU setup and driver workflow notes live in [docs/gpu-setup.md](docs/gpu-setup.md).
+See [docs/suite-guide.md](docs/suite-guide.md) for the high-level suite map and
+[docs/concave-reference.md](docs/concave-reference.md) for command coverage.
 
 ## Contributing
 
-This repo follows the engineering workflow described in [AGENTS.md](AGENTS.md). The codebase also keeps documentation as a first-class deliverable: when behavior changes, the matching suite and service docs change with it.
+Human contributor workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md). AI-agent workflow,
+ownership, phase gates, and review sequencing live in [AGENTS.md](AGENTS.md).
 
 ## License
 

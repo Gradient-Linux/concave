@@ -1,9 +1,7 @@
 package cmd
 
 import (
-	"os"
-
-	"github.com/gradient-linux/concave/internal/ui"
+	"github.com/Gradient-Linux/concave/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -24,6 +22,6 @@ func Execute() {
 	rootCmd.Version = Version
 	if err := rootCmd.Execute(); err != nil {
 		ui.Fail("Error", err.Error())
-		os.Exit(1)
+		exitFunc(1)
 	}
 }

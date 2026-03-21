@@ -4,11 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/gradient-linux/concave/internal/config"
-	"github.com/gradient-linux/concave/internal/docker"
-	"github.com/gradient-linux/concave/internal/suite"
-	"github.com/gradient-linux/concave/internal/ui"
-	"github.com/gradient-linux/concave/internal/workspace"
+	"github.com/Gradient-Linux/concave/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -25,7 +21,7 @@ var startCmd = &cobra.Command{
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer cancel()
 		for _, name := range names {
-			if err := docker.ComposeUp(ctx, workspace.ComposePath(name), true); err != nil {
+			if err := dockerComposeUp(ctx, workspaceComposePath(name), true); err != nil {
 				return err
 			}
 			ui.Pass("Started", name)
@@ -36,12 +32,12 @@ var startCmd = &cobra.Command{
 
 func targetSuites(args []string) ([]string, error) {
 	if len(args) == 1 {
-		if _, err := suite.Get(args[0]); err != nil {
+		if _, err := getSuite(args[0]); err != nil {
 			return nil, err
 		}
 		return []string{args[0]}, nil
 	}
-	state, err := config.LoadState()
+	state, err := loadState()
 	if err != nil {
 		return nil, err
 	}

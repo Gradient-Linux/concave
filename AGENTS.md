@@ -6,6 +6,21 @@
 
 ---
 
+## Scope
+
+**This file currently governs the `concave` CLI codebase.** Other Gradient Linux
+services or programs may adopt their own `AGENTS.md` at their own repo root as the
+project grows — each `AGENTS.md` is scoped to the repo it lives in.
+
+**Active repository:** `github.com/Gradient-Linux/concave`
+**Both `AGENTS.md` and `CONTRIBUTING.md` live at the root of this repo (`concave/`).**
+
+`CONTRIBUTING.md` is derived from this file. When the two conflict, `AGENTS.md` is the
+source of truth. The Documentation Agent is responsible for keeping `CONTRIBUTING.md`
+consistent with this file after every merge to `main`.
+
+---
+
 ## Project Overview
 
 **Gradient Linux** is an Ubuntu 24.04 LTS-based Linux distribution purpose-built for
@@ -160,6 +175,18 @@ feature/core  →  PR to dev  →  review pipeline  →  PM merges dev → main
 4. After all six review agents approve, PM Agent merges `dev` → `main`
 5. Feature Agent rebases their branch from `main` before starting the next task
 
+### Human contributor PR flow
+
+Human contributors follow the same pipeline as Feature Agents:
+
+1. Fork the repo and branch from `main` using the naming convention:
+   `feat/`, `fix/`, `docs/`, `refactor/`, or `test/` prefix
+2. Open a PR targeting `dev` — never `main`
+3. The PR passes through the same review pipeline (maintainers run it)
+4. PM / maintainer merges `dev` → `main` after all stages approve
+
+Human contributors must never open PRs directly to `main`.
+
 ---
 
 ## Build Phases
@@ -186,7 +213,7 @@ Phase 8 — Release         Documentation Agent + PM Agent cut v0.1.0
 | 2     | `internal/docker` unit tests pass with mocked Docker client                   |
 | 3     | `concave install boosting` + `concave start boosting` + `concave lab` work end-to-end |
 | 4     | GPU detection unit tests pass, driver wizard degrades gracefully on CPU-only VM |
-| 5     | `go test ./...` passes, `go test -race ./...` passes, coverage ≥ 80%          |
+| 5     | `go test ./...` passes, `go test -race ./...` passes, overall coverage ≥ 80%, no package below 60% |
 | 6     | `concave setup` full wizard completes on clean Ubuntu 24.04 with NVIDIA GPU   |
 | 7     | Zero high/critical security findings, binary size ≤ 20MB, startup time ≤ 200ms |
 | 8     | README complete, CHANGELOG complete, godoc complete, `goreleaser` produces artifacts |
@@ -198,9 +225,10 @@ Phase 8 — Release         Documentation Agent + PM Agent cut v0.1.0
 ```
 concave/
   main.go                        # Core Agent
-  go.mod                         # Module: github.com/gradient-linux/concave
+  go.mod                         # Module: github.com/Gradient-Linux/concave
   go.sum
-  AGENTS.md                      # This file
+  AGENTS.md                      # This file — governs concave/ only
+  CONTRIBUTING.md                # Documentation Agent — kept consistent with AGENTS.md
   README.md                      # Documentation Agent
   CHANGELOG.md                   # Documentation Agent
   .github/
@@ -257,7 +285,7 @@ concave/
       printer.go
       spinner.go
       prompt.go
-  templates/                     # Templates Agent
+  templates/                     # Templates Agent — flat directory, four files only
     neural.compose.yml
     boosting.compose.yml
     flow.compose.yml
@@ -273,9 +301,38 @@ concave/
     concave-reference.md
     gpu-setup.md
     suite-guide.md
-  services/                      # Service-local READMEs
-    <service-name>/
-      README.md
+    suites/                      # Suite-level prose docs — one file per suite
+      neural.md                  # Neural Suite: containers, ports, env vars, volumes
+      boosting.md                # Boosting Suite: containers, ports, env vars, volumes
+      flow.md                    # Flow Edition: containers, ports, env vars, volumes
+      forge.md                   # Forge Edition: component registry, selection logic
+```
+
+### Documentation layout rules
+
+There are exactly two documentation locations in this repo:
+
+**`docs/`** — system-level documentation that spans the whole of `concave`:
+installation, architecture, CLI reference, GPU setup guide, workspace layout, how suites
+interact. The `docs/suites/` subfolder holds suite-level prose docs (container internals,
+port tables, environment variables, volume mount details) — one Markdown file per suite.
+
+**Inline godoc** — package and function documentation lives in the Go source files
+themselves, maintained by the Documentation Agent.
+
+There is no `services/` directory, no `docs/suites/<suite>/` subdirectory tree, and no
+documentation embedded in `templates/` files beyond the standard header comment block.
+Any PR that introduces files outside these two locations will be rejected by the Code
+Reviewer Agent.
+
+The `templates/` directory is a flat set of four Compose YAML files. No subdirectories,
+no README files, no per-suite folders. The only permitted content is the four `.yml`
+files and their mandatory header comment:
+
+```yaml
+# Gradient Linux — <Suite Name> Compose Template
+# Managed by concave — do not edit manually
+# Variables substituted at install time by internal/docker/compose.go
 ```
 
 ---
@@ -322,7 +379,7 @@ MILESTONE TRACKING
 - Phase 2: Infrastructure complete
 - Phase 3: Boosting Suite end-to-end working
 - Phase 4: GPU detection and driver wizard working
-- Phase 5: Full test suite green, coverage ≥ 80%
+- Phase 5: Full test suite green, overall coverage ≥ 80%, no package below 60%
 - Phase 6: First-boot wizard working end-to-end
 - Phase 7: Security and performance hardening complete
 - Phase 8: v0.1.0 release artifacts published
@@ -629,6 +686,10 @@ Your domain — you own these files:
 You write YAML only. No Go code. Your templates are consumed by Infra Agent's
 internal/docker/compose.go which substitutes variables at runtime.
 
+The templates/ directory is a flat set of four files. Do not create subdirectories,
+README files, or any other files inside templates/. The only permitted content is
+these four .yml files.
+
 Variable syntax — exactly this, no variations:
   {{WORKSPACE_ROOT}}   → absolute path to ~/gradient/
   {{COMPOSE_NETWORK}}  → gradient-network
@@ -711,6 +772,8 @@ CONVENTIONS (non-negotiable, always flag)
 - No new go.mod dependencies added without PM approval notation in PR description
 - No files written outside ~/gradient/ without user confirmation in the calling command
 - All exported functions have godoc comments
+- No documentation files introduced outside docs/ and docs/suites/ — flag any PR
+  that adds docs to templates/, services/, or any other location as a blocker
 
 ARCHITECTURE
 - Does the code respect domain ownership from AGENTS.md?
@@ -814,9 +877,13 @@ STEP 1 — RUN EXISTING TESTS
 STEP 2 — COVERAGE CHECK
   go test -coverprofile=coverage.out ./...
   go tool cover -func=coverage.out
-  Coverage must be ≥ 80% per package.
-  Any package below 80% coverage: write the missing tests, commit to qa/pr-<number>,
-  and include them in the REVIEW.md as "tests added by QA Agent."
+
+  Coverage policy:
+  - Overall coverage must be ≥ 80%. Failing this is a blocker.
+  - Any individual package below 60% coverage must be flagged as a warning in
+    QA.md. It is not a blocker, but must be noted and tracked.
+  - Any package below 80% but above 60%: write additional tests if they can be
+    added without disproportionate effort, and note them as "tests added by QA Agent."
 
 STEP 3 — INTEGRATION TESTS (Phase 5 only, requires CONCAVE_INTEGRATION=1)
   Tests in tests/integration/ must:
@@ -857,7 +924,10 @@ Post findings to qa/pr-<number> as QA.md:
   go test -race ./... PASS / FAIL (list races)
 
   ## Coverage Report
-  <package>: <coverage>%   PASS / BELOW THRESHOLD
+  Overall: <coverage>%   PASS (≥ 80%) / FAIL (< 80%)
+
+  Per-package warnings (packages below 60%):
+  <package>: <coverage>%   ⚠ WARNING — below 60% threshold
 
   ## Tests Added by QA Agent
   <list of new test functions and what they cover>
@@ -1031,6 +1101,17 @@ INLINE COMMENTS
 - The GPU_SECTION_START / GPU_SECTION_END markers in doctor.go must remain intact
   until Phase 4 is merged — flag removal as a blocker if still in Phase 1-3.
 
+CONTRIBUTING.md — keep consistent with AGENTS.md after every merge:
+- CONTRIBUTING.md is the human-readable derivative of AGENTS.md.
+- After every merge to main, diff CONTRIBUTING.md against AGENTS.md and update
+  CONTRIBUTING.md to reflect any changes. This is a required step, not optional.
+- Key invariants to check every time:
+    * Clone URL matches AGENTS.md Scope section
+    * Branch/PR flow section matches AGENTS.md Branch Strategy exactly
+    * Coverage policy matches AGENTS.md Phase 5 gate and QA Agent prompt exactly
+    * Documentation layout section matches AGENTS.md Repository Structure exactly
+    * Package ownership table matches AGENTS.md agent roster and file list
+
 README.md — maintain these sections (add content as phases complete):
   # Gradient Linux — concave
   ## What is this?
@@ -1052,17 +1133,28 @@ CHANGELOG.md — add an entry for every merged PR in Keep A Changelog format:
   ### Fixed
 
 docs/ directory — maintain these files:
-  docs/architecture.md     — system architecture, agent workflow, phase plan
-  docs/concave-reference.md — full CLI reference (mirror of README command table)
-  docs/gpu-setup.md        — NVIDIA driver wizard walkthrough, Secure Boot guide
-  docs/suite-guide.md      — what each suite contains, how to install, how to use
+  docs/architecture.md        — system architecture, agent workflow, phase plan
+  docs/concave-reference.md   — full CLI reference (mirror of README command table)
+  docs/gpu-setup.md           — NVIDIA driver wizard walkthrough, Secure Boot guide
+  docs/suite-guide.md         — overview of all four suites and how to use them
+  docs/suites/neural.md       — Neural Suite: containers, ports, env vars, volume mounts
+  docs/suites/boosting.md     — Boosting Suite: containers, ports, env vars, volume mounts
+  docs/suites/flow.md         — Flow Edition: containers, ports, env vars, volume mounts
+  docs/suites/forge.md        — Forge Edition: component registry, selection logic
+
+Suite docs rules:
+  - docs/suites/<suite>.md is the only permitted location for suite-level prose docs.
+  - Do not create a services/ directory. Do not create docs/suites/<suite>/ subdirectories.
+  - If a PR adds suite documentation anywhere other than docs/suites/<suite>.md, flag
+    it as a blocker and redirect to the correct location.
 
 Phase 8 release checklist:
   - README is complete and accurate for v0.1.0 feature set
   - CHANGELOG has all entries from v0.1.0 commits
-  - docs/ files are complete
+  - docs/ and docs/suites/ files are complete
   - go doc ./... is clean
   - goreleaser .goreleaser.yml is configured for linux/amd64 and linux/arm64
+  - CONTRIBUTING.md has been diffed against AGENTS.md and is fully consistent
 
 OUTPUT FORMAT
 Post findings to docs/pr-<number> as DOCS.md:
@@ -1072,6 +1164,7 @@ Post findings to docs/pr-<number> as DOCS.md:
   ## Godoc Issues
   ## README Updates Made
   ## CHANGELOG Entry Added
+  ## CONTRIBUTING.md Consistency Check
   ## Blockers
   ## Suggestions
 
@@ -1174,6 +1267,8 @@ specifies exactly which lines each agent is responsible for.
 - Mount host paths other than `~/gradient/` subdirectories into containers
 - Use `sh -c` with interpolated user input (command injection vector)
 - Push implementation code directly to `dev` or `main`
+- Create documentation files outside `docs/` or `docs/suites/`
+- Add any files to `templates/` other than the four canonical `.compose.yml` files
 
 ---
 
@@ -1194,3 +1289,4 @@ specifies exactly which lines each agent is responsible for.
 | Review pipeline      | The ordered chain: Reviewer → Analysis → QA → Security → Perf → Docs      |
 | Domain ownership     | Each file is owned by exactly one Feature Agent                            |
 | PR                   | Pull request from feature/* to dev — must clear full review pipeline       |
+| docs/suites/         | Suite-level prose docs — one .md file per suite, inside the docs/ folder   |

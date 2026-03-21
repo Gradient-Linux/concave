@@ -7,6 +7,7 @@ import (
 	"io"
 	"os/exec"
 	"strings"
+	"sync"
 )
 
 var (
@@ -27,13 +28,34 @@ var (
 			return err
 		}
 
+		var (
+			wg      sync.WaitGroup
+			scanErr error
+			errMu   sync.Mutex
+		)
 		for _, stream := range []io.Reader{stdout, stderr} {
-			scanner := bufio.NewScanner(stream)
-			for scanner.Scan() {
-				if onLine != nil {
-					onLine(scanner.Text())
+			wg.Add(1)
+			go func(reader io.Reader) {
+				defer wg.Done()
+
+				scanner := bufio.NewScanner(reader)
+				for scanner.Scan() {
+					if onLine != nil {
+						onLine(scanner.Text())
+					}
 				}
-			}
+				if err := scanner.Err(); err != nil {
+					errMu.Lock()
+					if scanErr == nil {
+						scanErr = err
+					}
+					errMu.Unlock()
+				}
+			}(stream)
+		}
+		wg.Wait()
+		if scanErr != nil {
+			return fmt.Errorf("stream output: %w", scanErr)
 		}
 
 		if err := cmd.Wait(); err != nil {

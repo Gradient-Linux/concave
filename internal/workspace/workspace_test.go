@@ -11,14 +11,26 @@ import (
 func TestEnsureLayoutCreatesWorkspace(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 
+	if Exists() {
+		t.Fatal("workspace should not exist before EnsureLayout")
+	}
 	if err := EnsureLayout(); err != nil {
 		t.Fatalf("EnsureLayout() error = %v", err)
+	}
+	if !Exists() {
+		t.Fatal("workspace should exist after EnsureLayout")
 	}
 
 	for _, name := range []string{"data", "notebooks", "models", "outputs", "mlruns", "dags", "compose", "config", "backups"} {
 		if _, err := os.Stat(filepath.Join(Root(), name)); err != nil {
 			t.Fatalf("missing %s: %v", name, err)
 		}
+	}
+	if ComposePath("boosting") != filepath.Join(Root(), "compose", "boosting.compose.yml") {
+		t.Fatalf("unexpected compose path %s", ComposePath("boosting"))
+	}
+	if ConfigPath("state.json") != filepath.Join(Root(), "config", "state.json") {
+		t.Fatalf("unexpected config path %s", ConfigPath("state.json"))
 	}
 }
 
@@ -38,6 +50,9 @@ func TestStatusAndCleanOutputs(t *testing.T) {
 	}
 	if len(usages) == 0 {
 		t.Fatal("expected non-empty usage slice")
+	}
+	if human := usages[0].Human(); human == "" {
+		t.Fatal("expected human-readable usage string")
 	}
 
 	if err := CleanOutputs(); err != nil {

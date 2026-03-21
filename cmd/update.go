@@ -4,10 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/gradient-linux/concave/internal/config"
-	"github.com/gradient-linux/concave/internal/docker"
-	"github.com/gradient-linux/concave/internal/suite"
-	"github.com/gradient-linux/concave/internal/ui"
+	"github.com/Gradient-Linux/concave/internal/suite"
+	"github.com/Gradient-Linux/concave/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -21,7 +19,7 @@ var updateCmd = &cobra.Command{
 			return err
 		}
 
-		versions, err := config.LoadVersions()
+		versions, err := loadVersions()
 		if err != nil {
 			return err
 		}
@@ -29,17 +27,17 @@ var updateCmd = &cobra.Command{
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer cancel()
 		for _, container := range s.Containers {
-			recorded, _ := config.GetImageVersion(versions, s.Name, container.Name)
-			config.SetImageVersion(versions, s.Name, container.Name, container.Image, recorded.Current)
+			recorded, _ := getImageVersion(versions, s.Name, container.Name)
+			setImageVersion(versions, s.Name, container.Name, container.Image, recorded.Current)
 			ui.Info("Pulling", container.Image)
-			if err := docker.PullWithProgress(ctx, container.Image, nil); err != nil {
+			if err := dockerPullWithProgress(ctx, container.Image, nil); err != nil {
 				return err
 			}
 		}
-		if err := config.SaveVersions(versions); err != nil {
+		if err := saveVersions(versions); err != nil {
 			return err
 		}
-		if _, err := docker.WriteSuiteCompose(ctx, s); err != nil {
+		if _, err := dockerWriteSuiteCompose(ctx, s); err != nil {
 			return err
 		}
 		ui.Pass("Updated", s.Name)

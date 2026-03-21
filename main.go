@@ -1,11 +1,17 @@
 package main
 
-import "github.com/gradient-linux/concave/cmd"
+import "github.com/Gradient-Linux/concave/cmd"
 
 // Version is injected at build time.
 var Version = "dev"
 
+var executeCommand = cmd.Execute
+
+func run(version string) {
+	cmd.Version = version
+	executeCommand()
+}
+
 func main() {
-	cmd.Version = Version
-	cmd.Execute()
+	run(Version)
 }

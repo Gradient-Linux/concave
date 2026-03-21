@@ -4,9 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/gradient-linux/concave/internal/docker"
-	"github.com/gradient-linux/concave/internal/ui"
-	"github.com/gradient-linux/concave/internal/workspace"
+	"github.com/Gradient-Linux/concave/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -17,10 +15,10 @@ var restartCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer cancel()
-		if err := docker.ComposeDown(ctx, workspace.ComposePath(args[0])); err != nil {
+		if err := dockerComposeDown(ctx, workspaceComposePath(args[0])); err != nil {
 			return err
 		}
-		if err := docker.ComposeUp(ctx, workspace.ComposePath(args[0]), true); err != nil {
+		if err := dockerComposeUp(ctx, workspaceComposePath(args[0]), true); err != nil {
 			return err
 		}
 		ui.Pass("Restarted", args[0])
