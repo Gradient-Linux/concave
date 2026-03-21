@@ -1,6 +1,7 @@
 concave
 concave-arm64
 dist/
+AGENTS.md
 coverage.out
 coverage.html
 mem.out

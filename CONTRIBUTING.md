@@ -1,11 +1,13 @@
 # Contributing to Gradient Linux / concave
 
-`concave` is the control-plane CLI for Gradient Linux. This document explains how
-human contributors work in this repository.
+`concave` is the control-plane CLI for Gradient Linux. This document is the public
+source of truth for contributor-facing expectations in this repository: architecture
+rules, documentation layout, code conventions, testing gates, and pull request flow.
 
-If you are an AI agent, read [AGENTS.md](AGENTS.md) first. `AGENTS.md` is the source of
-truth for workflow, ownership, phase gates, and review policy. When this file conflicts
-with `AGENTS.md`, `AGENTS.md` wins.
+Maintainers may use their own internal tooling, automation, or agentic workflows while
+building and reviewing the project. Those internal workflows are not part of the public
+contribution contract. If you contribute with your own local tooling or agents, the
+result still needs to follow this document.
 
 ## Scope
 
@@ -22,7 +24,6 @@ containers. Do not add host Python installation paths to this project.
 
 ```text
 concave/
-  AGENTS.md
   CONTRIBUTING.md
   README.md
   CHANGELOG.md
@@ -116,16 +117,7 @@ Workflow:
 4. Update docs in the same branch when behavior changes.
 5. Open a pull request targeting `dev`, never `main`.
 
-Human PRs follow the same review sequence defined in `AGENTS.md`:
-
-1. Code Reviewer
-2. Code Analysis
-3. QA
-4. Security
-5. Performance
-6. Documentation
-
-Maintainers handle the pipeline and the final `dev` to `main` merge.
+Maintainers handle review, additional automation, and the final `dev` to `main` merge.
 
 ## Commit Format
 
@@ -158,7 +150,7 @@ Examples:
 
 - `feat(suite): add boosting install rollback cleanup`
 - `fix(infra): delete invalid compose files on validation failure`
-- `docs(docs): align suite guide with AGENTS workflow`
+- `docs(docs): align suite guide with current install flow`
 
 ## Code Rules
 
@@ -216,7 +208,7 @@ go vet ./...
 CGO_ENABLED=0 go build -o concave .
 ```
 
-Coverage gate from `AGENTS.md`:
+Coverage gate:
 
 - overall coverage must be at least 80%
 - no package may fall below 60%
@@ -262,6 +254,13 @@ These changes will be rejected:
 - `sudo` outside approved GPU/setup files
 - changes that modify user data during remove or rollback
 - undocumented behavior changes
+
+## Internal Workflows
+
+This repository may also be developed with private internal scaffolding that is not
+checked into version control. That internal workflow is not the contributor contract.
+
+For public contributions, `CONTRIBUTING.md` is the repo policy.
 
 ## Security Reports
 

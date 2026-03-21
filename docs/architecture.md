@@ -41,5 +41,4 @@ container-level details for that suite. There is no standalone `services/` tree.
 ## Ownership Resolution
 
 This implementation treats `cmd/lab.go` as suite-owned behavior and
-`internal/system/ports.go` as infra-owned behavior to resolve the overlap called out in
-`AGENTS.md`.
+`internal/system/ports.go` as infra-owned behavior to keep runtime ownership clear.

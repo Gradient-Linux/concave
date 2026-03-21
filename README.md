@@ -29,7 +29,7 @@ tracking, orchestration, and observability stay inside containers.
 
 ## Documentation Layout
 
-The repo follows the layout defined in [AGENTS.md](AGENTS.md):
+The repo keeps contributor-facing documentation in two places:
 
 - system-wide documentation lives in [docs](docs)
 - suite-level documentation lives in [docs/suites](docs/suites)
@@ -73,8 +73,9 @@ See [docs/suite-guide.md](docs/suite-guide.md) for the high-level suite map and
 
 ## Contributing
 
-Human contributor workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md). AI-agent workflow,
-ownership, phase gates, and review sequencing live in [AGENTS.md](AGENTS.md).
+Contributor expectations, repository conventions, and pull request rules live in
+[CONTRIBUTING.md](CONTRIBUTING.md). Maintainers may use additional private automation or
+internal workflows, but the public contribution contract is defined here in the repo.
 
 ## License
 
