@@ -71,7 +71,7 @@ same pull request.
 Requirements:
 
 - Ubuntu 24.04 LTS preferred
-- Go 1.22 or newer
+- Go 1.25.0 or newer locally
 - Docker Engine
 - `golangci-lint` for local lint checks
 
@@ -164,7 +164,7 @@ Examples:
 
 ### General
 
-- Use Go 1.22 compatible code.
+- Use Go 1.25-compatible code. CI runs on Go 1.26.1.
 - `github.com/spf13/cobra v1.8.0` is the only approved direct external dependency.
 - New dependencies require explicit maintainer approval.
 - Keep functions small and easy to test.

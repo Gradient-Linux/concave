@@ -459,7 +459,8 @@ RULES
 - Write unit tests alongside every file you create (same package, _test.go suffix).
 - Open a PR to dev when each phase deliverable is complete. Do not batch phases.
 
-Language: Go 1.22. cobra v1.8.0 for CLI. CGO_ENABLED=0 static binary.
+Language: Go 1.25-compatible code, with CI and release workflows pinned to Go 1.26.1.
+cobra v1.8.0 for CLI. CGO_ENABLED=0 static binary.
 ```
 
 ---
