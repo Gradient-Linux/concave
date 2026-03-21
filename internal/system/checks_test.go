@@ -136,17 +136,16 @@ func TestChecksErrorAndPortRegistry(t *testing.T) {
 	if err != nil {
 		t.Fatalf("suite.Get(neural) error = %v", err)
 	}
-	conflicts := CheckConflicts(neural)
+	conflicts, err := CheckConflicts(neural, []string{"boosting"})
+	if err != nil {
+		t.Fatalf("CheckConflicts() error = %v", err)
+	}
 	if len(conflicts) == 0 {
 		t.Fatal("expected conflicts against installed boosting suite")
 	}
 	if conflicts[0].Port != 8888 {
 		t.Fatalf("unexpected first conflict port %d", conflicts[0].Port)
 	}
-	if err := config.SaveState(config.State{Installed: []string{}}); err != nil {
-		t.Fatalf("SaveState() reset error = %v", err)
-	}
-
 	boosting, err := suite.Get("boosting")
 	if err != nil {
 		t.Fatalf("suite.Get(boosting) error = %v", err)

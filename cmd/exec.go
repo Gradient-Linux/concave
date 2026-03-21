@@ -2,8 +2,9 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"time"
+	"os/exec"
 
 	"github.com/spf13/cobra"
 )
@@ -12,19 +13,44 @@ var execCmd = &cobra.Command{
 	Use:   "exec [suite] -- [command]",
 	Short: "Run a non-interactive command inside a suite container",
 	Args:  cobra.MinimumNArgs(2),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		s, err := getSuite(args[0])
-		if err != nil {
+	RunE:  runExec,
+}
+
+func runExec(cmd *cobra.Command, args []string) error {
+	name := args[0]
+	installed, err := isInstalled(name)
+	if err != nil {
+		return err
+	}
+	if !installed {
+		return fmt.Errorf("suite %s is not installed", name)
+	}
+
+	s, err := currentSuiteDefinition(name)
+	if err != nil {
+		return err
+	}
+	container := primaryContainer(s)
+	status, err := dockerContainerStatus(context.Background(), container)
+	if err != nil {
+		return err
+	}
+	if status != "running" {
+		return fmt.Errorf("suite %s is not running. Run: concave start %s", name, name)
+	}
+
+	command := append([]string{"exec", container}, args[1:]...)
+	if err := runDockerInteractive(context.Background(), command...); err != nil {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			return exitErr
+		}
+		if _, ok := resolveExitCode(err); ok {
 			return err
 		}
-
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-		defer cancel()
-		if err := dockerExecCommand(ctx, primaryContainer(s), args[1:]...); err != nil {
-			return fmt.Errorf("suite exec %s: %w", s.Name, err)
-		}
-		return nil
-	},
+		return fmt.Errorf("suite exec %s: %w", name, err)
+	}
+	return nil
 }
 
 func init() {

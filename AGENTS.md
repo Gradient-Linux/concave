@@ -211,7 +211,7 @@ Phase 8 — Release         Documentation Agent + PM Agent cut v0.1.0
 |-------|--------------------------------------------------------------------------------|
 | 1     | `concave doctor` runs, `concave workspace init` creates `~/gradient/`, unit tests pass |
 | 2     | `internal/docker` unit tests pass with mocked Docker client                   |
-| 3     | `concave install boosting` + `concave start boosting` + `concave lab` work end-to-end |
+| 3     | `concave install boosting` + `concave start boosting` + `concave lab` work end-to-end, and the AGENTS.md suite/image reference is updated to match the shipped tags |
 | 4     | GPU detection unit tests pass, driver wizard degrades gracefully on CPU-only VM |
 | 5     | `go test ./...` passes, `go test -race ./...` passes, overall coverage ≥ 80%, no package below 60% |
 | 6     | `concave setup` full wizard completes on clean Ubuntu 24.04 with NVIDIA GPU   |
@@ -709,14 +709,14 @@ Rules for every template:
 
 boosting.compose.yml services:
   gradient-boost-core    python:3.12-slim           port: none (internal only)
-  gradient-boost-lab     jupyter/base-notebook:4.0  port: 8888
+  gradient-boost-lab     quay.io/jupyter/base-notebook:python-3.11.6  port: 8888
   gradient-boost-track   ghcr.io/mlflow/mlflow:2.14 port: 5000
   Volumes: data, notebooks, models, outputs, mlruns from {{WORKSPACE_ROOT}}
 
 neural.compose.yml services:
   gradient-neural-torch   pytorch/pytorch:2.6.0-cuda12.4-cudnn9-runtime  port: none
   gradient-neural-infer   nvidia/cuda:12.4-runtime-ubuntu24.04            port: 8000, 8080
-  gradient-neural-lab     jupyter/base-notebook:4.0                       port: 8888
+  gradient-neural-lab     quay.io/jupyter/base-notebook:python-3.11.6     port: 8888
   GPU section on neural-torch and neural-infer:
     deploy:
       resources:
@@ -1225,11 +1225,11 @@ specifies exactly which lines each agent is responsible for.
 | Suite    | Container                | Image                                         | Role          |
 |----------|--------------------------|-----------------------------------------------|---------------|
 | Boosting | gradient-boost-core      | python:3.12-slim                              | Core ML       |
-| Boosting | gradient-boost-lab       | jupyter/base-notebook:4.0                     | JupyterLab    |
+| Boosting | gradient-boost-lab       | quay.io/jupyter/base-notebook:python-3.11.6   | JupyterLab    |
 | Boosting | gradient-boost-track     | ghcr.io/mlflow/mlflow:2.14                    | MLflow        |
 | Neural   | gradient-neural-torch    | pytorch/pytorch:2.6.0-cuda12.4-cudnn9-runtime | Training      |
 | Neural   | gradient-neural-infer    | nvidia/cuda:12.4-runtime-ubuntu24.04          | Inference     |
-| Neural   | gradient-neural-lab      | jupyter/base-notebook:4.0                     | JupyterLab    |
+| Neural   | gradient-neural-lab      | quay.io/jupyter/base-notebook:python-3.11.6   | JupyterLab    |
 | Flow     | gradient-flow-mlflow     | ghcr.io/mlflow/mlflow:2.14                    | Tracking      |
 | Flow     | gradient-flow-airflow    | apache/airflow:2.9.0                          | Orchestration |
 | Flow     | gradient-flow-prometheus | prom/prometheus:v2.51.0                       | Metrics       |

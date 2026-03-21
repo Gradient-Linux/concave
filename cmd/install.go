@@ -2,109 +2,39 @@ package cmd
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/Gradient-Linux/concave/internal/gpu"
 	"github.com/Gradient-Linux/concave/internal/suite"
-	"github.com/Gradient-Linux/concave/internal/ui"
 	"github.com/spf13/cobra"
 )
 
+var installForce bool
+
 var installCmd = &cobra.Command{
 	Use:   "install [suite]",
-	Short: "Install a suite",
+	Short: "Install a Gradient Linux AI suite",
+	Long:  "Install one of: neural, boosting, flow, forge",
 	Args:  cobra.ExactArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		name := args[0]
-		if err := ensureWorkspaceLayout(); err != nil {
-			return err
-		}
+	RunE:  runInstall,
+}
 
-		var target suite.Suite
-		if name == "forge" {
-			selected := selectForgeComponents()
-			if len(selected) == 0 {
-				return fmt.Errorf("forge requires at least one selected component")
-			}
-			target = suite.Suite{Name: "forge", ComposeTemplate: "forge"}
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-			defer cancel()
-			data, err := buildForgeCompose(selected)
-			if err != nil {
-				return err
-			}
-			path, err := dockerWriteRawCompose(ctx, "forge", data)
-			if err != nil {
-				return err
-			}
-			if err := addInstalledSuite("forge"); err != nil {
-				return err
-			}
-			ui.Pass("Installed", path)
-			return nil
-		}
+func runInstall(cmd *cobra.Command, args []string) error {
+	state, err := gpuDetectState()
+	if err != nil {
+		return err
+	}
 
-		plan, err := buildInstallPlan(name)
-		if err != nil {
-			return err
-		}
-		target = plan.Suite
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
 
-		if target.GPURequired {
-			state, err := gpuDetectState()
-			if err != nil {
-				return err
-			}
-			if state == gpu.GPUStateNone {
-				ui.Warn("GPU", "Neural suite requires NVIDIA support for the full runtime path")
-			}
-		}
-
-		if conflicts := systemCheckConflicts(target); len(conflicts) > 0 {
-			conflict := conflicts[0]
-			return fmt.Errorf("port %d conflicts with %s (%s)", conflict.Port, conflict.ExistingSuite, conflict.ExistingService)
-		}
-
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-		defer cancel()
-
-		versions, err := loadVersions()
-		if err != nil {
-			return err
-		}
-		for _, container := range target.Containers {
-			ui.Info("Pulling", container.Image)
-			if err := dockerPullWithProgress(ctx, container.Image, nil); err != nil {
-				return err
-			}
-			recorded, ok := getImageVersion(versions, target.Name, container.Name)
-			previous := ""
-			if ok {
-				previous = recorded.Current
-			}
-			setImageVersion(versions, target.Name, container.Name, container.Image, previous)
-		}
-		if err := saveVersions(versions); err != nil {
-			return err
-		}
-
-		path, err := dockerWriteSuiteCompose(ctx, target)
-		if err != nil {
-			return err
-		}
-		if err := addInstalledSuite(target.Name); err != nil {
-			return err
-		}
-		if err := systemRegisterPorts(target); err != nil {
-			return err
-		}
-
-		ui.Pass("Installed", path)
-		return nil
-	},
+	return installSuite(ctx, args[0], suite.InstallOptions{
+		GPUAvailable: state == gpu.GPUStateNVIDIA,
+		Force:        installForce,
+	})
 }
 
 func init() {
+	installCmd.Flags().BoolVar(&installForce, "force", false, "reinstall an already-installed suite")
 	rootCmd.AddCommand(installCmd)
 }

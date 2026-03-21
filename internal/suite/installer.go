@@ -1,85 +1,154 @@
 package suite
 
 import (
+	"context"
 	"fmt"
-	"sort"
-	"strings"
+
+	"github.com/Gradient-Linux/concave/internal/config"
+	"github.com/Gradient-Linux/concave/internal/docker"
+	"github.com/Gradient-Linux/concave/internal/ui"
 )
 
-// InstallPlan summarizes the container images and runtime entry points for a suite.
-type InstallPlan struct {
-	Suite            Suite
-	Images           []string
-	PrimaryContainer string
-	JupyterContainer string
+// PortConflict captures a suite install conflict without importing internal/system.
+type PortConflict struct {
+	Port          int
+	ExistingSuite string
+	NewSuite      string
+	Service       string
 }
 
-// BuildInstallPlan builds a lightweight install plan from the registry definition.
-func BuildInstallPlan(name string) (InstallPlan, error) {
-	s, err := Get(name)
+// InstallOptions controls suite installation behavior.
+type InstallOptions struct {
+	GPUAvailable bool
+	Force        bool
+}
+
+var checkConflicts = func(Suite, []string) ([]PortConflict, error) {
+	return []PortConflict{}, nil
+}
+
+var (
+	loadInstalledState    = config.LoadState
+	suiteInstalled        = config.IsInstalled
+	loadVersionManifest   = config.LoadManifest
+	saveVersionManifest   = config.SaveManifest
+	addInstalledSuite     = config.AddSuite
+	recordSuiteInstall    = config.RecordInstall
+	pullImageWithRollback = docker.PullWithRollbackSafety
+	writeComposeFile      = docker.WriteCompose
+	writeRawComposeFile   = docker.WriteRawCompose
+)
+
+// SetConflictChecker wires the port-conflict implementation without introducing a package cycle.
+func SetConflictChecker(fn func(Suite, []string) ([]PortConflict, error)) {
+	if fn == nil {
+		checkConflicts = func(Suite, []string) ([]PortConflict, error) { return []PortConflict{}, nil }
+		return
+	}
+	checkConflicts = fn
+}
+
+// Install runs the suite installation flow for a named suite.
+func Install(ctx context.Context, suiteName string, opts InstallOptions) error {
+	selectedSuite, _, err := installTarget(suiteName)
 	if err != nil {
-		return InstallPlan{}, err
+		return fmt.Errorf("step 1 validate suite: %w", err)
 	}
 
-	images := ImageList(s)
-	primary := PrimaryContainer(s)
-	jupyter, _ := JupyterContainer(s)
-
-	return InstallPlan{
-		Suite:            s,
-		Images:           images,
-		PrimaryContainer: primary,
-		JupyterContainer: jupyter,
-	}, nil
-}
-
-// ImageList returns the suite's container images in registry order.
-func ImageList(s Suite) []string {
-	images := make([]string, 0, len(s.Containers))
-	for _, container := range s.Containers {
-		images = append(images, container.Image)
+	installed, err := suiteInstalled(selectedSuite.Name)
+	if err != nil {
+		return fmt.Errorf("step 2 check installed state: %w", err)
 	}
-	return images
-}
-
-// ContainerNames returns the suite's container names in registry order.
-func ContainerNames(s Suite) []string {
-	names := make([]string, 0, len(s.Containers))
-	for _, container := range s.Containers {
-		names = append(names, container.Name)
+	if installed && !opts.Force {
+		ui.Info("Install", selectedSuite.Name+" already installed")
+		return nil
 	}
-	return names
-}
 
-// PrimaryContainer returns the first container in a suite.
-func PrimaryContainer(s Suite) string {
-	if len(s.Containers) == 0 {
-		return ""
+	if selectedSuite.GPURequired && !opts.GPUAvailable {
+		ui.Warn("GPU", selectedSuite.Name+" benefits from NVIDIA support; continuing without GPU")
 	}
-	return s.Containers[0].Name
-}
 
-// JupyterContainer returns the suite container that exposes JupyterLab, if any.
-func JupyterContainer(s Suite) (string, bool) {
-	for _, container := range s.Containers {
-		if strings.Contains(strings.ToLower(container.Role), "jupyter") {
-			return container.Name, true
+	state, err := loadInstalledState()
+	if err != nil {
+		return fmt.Errorf("step 4 load installed suites: %w", err)
+	}
+	conflicts, err := checkConflicts(selectedSuite, state.Installed)
+	if err != nil {
+		return fmt.Errorf("step 4 check port conflicts: %w", err)
+	}
+	if len(conflicts) > 0 {
+		for _, conflict := range conflicts {
+			ui.Fail("Port conflict", fmt.Sprintf("%d owned by %s (%s)", conflict.Port, conflict.ExistingSuite, conflict.Service))
+		}
+		return fmt.Errorf("step 4 check port conflicts: conflicts detected for %s", selectedSuite.Name)
+	}
+
+	spinner := ui.NewSpinner("Pulling images")
+	spinner.Start()
+	for _, container := range selectedSuite.Containers {
+		ui.Info("Pulling", container.Image)
+		if err := pullImageWithRollback(ctx, container.Image, nil); err != nil {
+			spinner.Stop("")
+			return fmt.Errorf("step 5 pull images: %w", err)
 		}
 	}
-	return "", false
+	spinner.Stop("images ready")
+
+	if err := writeSelectedCompose(selectedSuite); err != nil {
+		return fmt.Errorf("step 6 write compose file: %w", err)
+	}
+
+	manifest, err := loadVersionManifest()
+	if err != nil {
+		return fmt.Errorf("step 7 load manifest: %w", err)
+	}
+	manifest = recordSuiteInstall(manifest, selectedSuite)
+	if err := saveVersionManifest(manifest); err != nil {
+		return fmt.Errorf("step 7 save manifest: %w", err)
+	}
+
+	if err := addInstalledSuite(selectedSuite.Name); err != nil {
+		return fmt.Errorf("step 8 update state: %w", err)
+	}
+
+	ui.Pass("Install", selectedSuite.Name+" installed successfully")
+	return nil
 }
 
-// SuitePorts returns a stable string representation of suite ports.
-func SuitePorts(s Suite) string {
-	ports := make([]int, 0, len(s.Ports))
-	for _, port := range s.Ports {
-		ports = append(ports, port.Port)
+func installTarget(name string) (Suite, ForgeSelection, error) {
+	base, err := Get(name)
+	if err != nil {
+		return Suite{}, ForgeSelection{}, err
 	}
-	sort.Ints(ports)
+	if name != "forge" {
+		return base, ForgeSelection{}, nil
+	}
 
-	parts := make([]string, 0, len(ports))
-	for _, port := range ports {
-		parts = append(parts, fmt.Sprintf("%d", port))
+	selection, err := PickComponents()
+	if err != nil {
+		return Suite{}, ForgeSelection{}, err
 	}
-	return strings.Join(parts, ", ")
+	base.Containers = selection.Containers
+	base.Ports = selection.Ports
+	base.Volumes = selection.Volumes
+	return base, selection, nil
+}
+
+func writeSelectedCompose(selectedSuite Suite) error {
+	if selectedSuite.Name != "forge" {
+		_, err := writeComposeFile(selectedSuite.Name)
+		return err
+	}
+
+	selection := ForgeSelection{
+		Containers: selectedSuite.Containers,
+		Ports:      selectedSuite.Ports,
+		Volumes:    selectedSuite.Volumes,
+	}
+	data, err := BuildForgeCompose(selection)
+	if err != nil {
+		return err
+	}
+	_, err = writeRawComposeFile(selectedSuite.Name, data)
+	return err
 }

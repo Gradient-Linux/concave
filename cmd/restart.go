@@ -12,18 +12,38 @@ var restartCmd = &cobra.Command{
 	Use:   "restart [suite]",
 	Short: "Restart a suite",
 	Args:  cobra.ExactArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-		defer cancel()
-		if err := dockerComposeDown(ctx, workspaceComposePath(args[0])); err != nil {
-			return err
-		}
-		if err := dockerComposeUp(ctx, workspaceComposePath(args[0]), true); err != nil {
-			return err
-		}
-		ui.Pass("Restarted", args[0])
-		return nil
-	},
+	RunE:  runRestart,
+}
+
+func runRestart(cmd *cobra.Command, args []string) error {
+	names, err := installedSuiteTargets(args, false)
+	if err != nil {
+		return err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	name := names[0]
+	ui.Info("Restarting", name)
+	if err := dockerComposeDown(ctx, dockerComposePath(name)); err != nil {
+		return err
+	}
+	s, err := currentSuiteDefinition(name)
+	if err != nil {
+		return err
+	}
+	if err := systemDeregisterPorts(s); err != nil {
+		return err
+	}
+	if err := dockerComposeUp(ctx, dockerComposePath(name), true); err != nil {
+		return err
+	}
+	if err := systemRegisterPorts(s); err != nil {
+		return err
+	}
+	ui.Pass("Restarted", name)
+	return nil
 }
 
 func init() {

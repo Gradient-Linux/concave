@@ -2,9 +2,9 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"time"
 
-	"github.com/Gradient-Linux/concave/internal/suite"
 	"github.com/Gradient-Linux/concave/internal/ui"
 	"github.com/spf13/cobra"
 )
@@ -13,36 +13,57 @@ var updateCmd = &cobra.Command{
 	Use:   "update [suite]",
 	Short: "Update a suite to the images pinned in the registry",
 	Args:  cobra.ExactArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		s, err := suite.Get(args[0])
-		if err != nil {
-			return err
-		}
+	RunE:  runUpdate,
+}
 
-		versions, err := loadVersions()
-		if err != nil {
-			return err
-		}
+func runUpdate(cmd *cobra.Command, args []string) error {
+	name := args[0]
+	installed, err := isInstalled(name)
+	if err != nil {
+		return err
+	}
+	if !installed {
+		return fmt.Errorf("suite %s is not installed", name)
+	}
 
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-		defer cancel()
-		for _, container := range s.Containers {
-			recorded, _ := getImageVersion(versions, s.Name, container.Name)
-			setImageVersion(versions, s.Name, container.Name, container.Image, recorded.Current)
-			ui.Info("Pulling", container.Image)
-			if err := dockerPullWithProgress(ctx, container.Image, nil); err != nil {
-				return err
-			}
+	s, err := currentSuiteDefinition(name)
+	if err != nil {
+		return err
+	}
+
+	manifest, err := loadManifest()
+	if err != nil {
+		return err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	for _, container := range s.Containers {
+		current := ""
+		if containers, ok := manifest[s.Name]; ok {
+			current = containers[container.Name].Current
 		}
-		if err := saveVersions(versions); err != nil {
+		ui.Info("Pulling", container.Image)
+		if err := dockerPullWithRollbackSafety(ctx, container.Image, nil); err != nil {
 			return err
 		}
-		if _, err := dockerWriteSuiteCompose(ctx, s); err != nil {
-			return err
-		}
-		ui.Pass("Updated", s.Name)
-		return nil
-	},
+		manifest = recordUpdate(manifest, s.Name, container.Name, container.Image)
+		ui.Info(container.Name, fmt.Sprintf("%s -> %s", current, container.Image))
+	}
+
+	if err := saveManifest(manifest); err != nil {
+		return err
+	}
+	if _, err := writeComposeForCurrentState(name); err != nil {
+		return err
+	}
+	if err := dockerComposeUp(ctx, dockerComposePath(name), true); err != nil {
+		return err
+	}
+
+	ui.Pass("Update", name)
+	return nil
 }
 
 func init() {

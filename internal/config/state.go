@@ -6,13 +6,15 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"time"
 
 	"github.com/Gradient-Linux/concave/internal/workspace"
 )
 
-// State tracks installed suites.
+// State tracks installed suites and the last mutation time.
 type State struct {
-	Installed []string `json:"installed"`
+	Installed   []string  `json:"installed"`
+	LastUpdated time.Time `json:"last_updated"`
 }
 
 // LoadState reads ~/gradient/config/state.json or returns an empty state when missing.
@@ -44,26 +46,31 @@ func LoadState() (State, error) {
 // SaveState writes ~/gradient/config/state.json atomically.
 func SaveState(state State) error {
 	sort.Strings(state.Installed)
+	if state.LastUpdated.IsZero() {
+		state.LastUpdated = time.Now().UTC()
+	}
 	return writeJSONAtomically(workspace.ConfigPath("state.json"), state)
 }
 
-// AddInstalled records a suite as installed.
-func AddInstalled(name string) error {
+// AddSuite records a suite as installed.
+func AddSuite(name string) error {
 	state, err := LoadState()
 	if err != nil {
 		return err
 	}
 	for _, installed := range state.Installed {
 		if installed == name {
-			return nil
+			state.LastUpdated = time.Now().UTC()
+			return SaveState(state)
 		}
 	}
 	state.Installed = append(state.Installed, name)
+	state.LastUpdated = time.Now().UTC()
 	return SaveState(state)
 }
 
-// RemoveInstalled removes a suite from the installed set.
-func RemoveInstalled(name string) error {
+// RemoveSuite removes a suite from the installed set.
+func RemoveSuite(name string) error {
 	state, err := LoadState()
 	if err != nil {
 		return err
@@ -76,6 +83,7 @@ func RemoveInstalled(name string) error {
 		}
 	}
 	state.Installed = filtered
+	state.LastUpdated = time.Now().UTC()
 	return SaveState(state)
 }
 

@@ -2,20 +2,17 @@ package system
 
 import (
 	"fmt"
-	"strings"
 	"sync"
 
-	"github.com/Gradient-Linux/concave/internal/config"
 	"github.com/Gradient-Linux/concave/internal/suite"
 )
 
 // PortConflict describes a detected suite port collision.
 type PortConflict struct {
-	Port            int
-	ExistingSuite   string
-	ExistingService string
-	NewSuite        string
-	NewService      string
+	Port          int
+	ExistingSuite string
+	NewSuite      string
+	Service       string
 }
 
 type portRegistration struct {
@@ -28,34 +25,42 @@ var (
 	portRegistry   = map[int]portRegistration{}
 )
 
-// CheckConflicts returns any port conflicts for the provided suite.
-func CheckConflicts(s suite.Suite) []PortConflict {
+// CheckConflicts returns port conflicts between a suite and installed/runtime suites.
+func CheckConflicts(newSuite suite.Suite, installedSuites []string) ([]PortConflict, error) {
 	portRegistryMu.Lock()
 	defer portRegistryMu.Unlock()
 
-	registry := loadPersistedRegistry()
+	registry, err := buildPortRegistry(installedSuites)
+	if err != nil {
+		return nil, err
+	}
 	for port, registration := range portRegistry {
 		registry[port] = registration
 	}
-	return checkConflicts(s, registry)
+	return checkConflicts(newSuite, registry), nil
 }
 
-// Register adds suite ports to the runtime registry.
+// IsMLflowDeduplicated reports whether MLflow is already satisfied by an installed suite.
+func IsMLflowDeduplicated(installedSuites []string) bool {
+	for _, name := range installedSuites {
+		if name == "boosting" || name == "flow" {
+			return true
+		}
+	}
+	return false
+}
+
+// Register adds suite ports to the runtime registry for started suites.
 func Register(s suite.Suite) error {
 	portRegistryMu.Lock()
 	defer portRegistryMu.Unlock()
 
-	registry := loadPersistedRegistry()
-	for port, registration := range portRegistry {
-		registry[port] = registration
-	}
-	for _, conflict := range checkConflicts(s, registry) {
-		return fmt.Errorf("port %d already used by %s (%s)", conflict.Port, conflict.ExistingSuite, conflict.ExistingService)
-	}
-
 	for _, mapping := range s.Ports {
-		if existing, ok := portRegistry[mapping.Port]; ok && sharedMLflow(existing.Suite, s.Name, mapping.Port) {
-			continue
+		if existing, ok := portRegistry[mapping.Port]; ok {
+			if existing.Suite == s.Name || sharedMLflow(existing.Suite, s.Name, mapping.Port) {
+				continue
+			}
+			return fmt.Errorf("port %d already used by %s (%s)", mapping.Port, existing.Suite, existing.Service)
 		}
 		portRegistry[mapping.Port] = portRegistration{
 			Suite:   s.Name,
@@ -65,7 +70,7 @@ func Register(s suite.Suite) error {
 	return nil
 }
 
-// Deregister removes a suite from the runtime registry.
+// Deregister removes a suite from the runtime registry for stopped suites.
 func Deregister(s suite.Suite) error {
 	portRegistryMu.Lock()
 	defer portRegistryMu.Unlock()
@@ -78,50 +83,47 @@ func Deregister(s suite.Suite) error {
 	return nil
 }
 
-func loadPersistedRegistry() map[int]portRegistration {
-	registry := map[int]portRegistration{}
-	state, err := config.LoadState()
-	if err != nil {
-		return registry
-	}
-	for _, name := range state.Installed {
+func buildPortRegistry(installedSuites []string) (map[int]portRegistration, error) {
+	registry := make(map[int]portRegistration)
+	for _, name := range installedSuites {
 		s, err := suite.Get(name)
 		if err != nil {
-			continue
+			return nil, err
 		}
 		for _, mapping := range s.Ports {
 			if existing, ok := registry[mapping.Port]; ok && sharedMLflow(existing.Suite, s.Name, mapping.Port) {
 				continue
 			}
-			registry[mapping.Port] = portRegistration{Suite: s.Name, Service: mapping.Service}
+			registry[mapping.Port] = portRegistration{
+				Suite:   s.Name,
+				Service: mapping.Service,
+			}
 		}
 	}
-	return registry
+	return registry, nil
 }
 
-func checkConflicts(s suite.Suite, registry map[int]portRegistration) []PortConflict {
-	var conflicts []PortConflict
-	for _, mapping := range s.Ports {
-		if existing, ok := registry[mapping.Port]; ok {
-			if sharedMLflow(existing.Suite, s.Name, mapping.Port) {
-				continue
-			}
-			conflicts = append(conflicts, PortConflict{
-				Port:            mapping.Port,
-				ExistingSuite:   existing.Suite,
-				ExistingService: existing.Service,
-				NewSuite:        s.Name,
-				NewService:      mapping.Service,
-			})
+func checkConflicts(newSuite suite.Suite, registry map[int]portRegistration) []PortConflict {
+	conflicts := make([]PortConflict, 0)
+	for _, mapping := range newSuite.Ports {
+		existing, ok := registry[mapping.Port]
+		if !ok || sharedMLflow(existing.Suite, newSuite.Name, mapping.Port) {
+			continue
 		}
+		conflicts = append(conflicts, PortConflict{
+			Port:          mapping.Port,
+			ExistingSuite: existing.Suite,
+			NewSuite:      newSuite.Name,
+			Service:       existing.Service,
+		})
 	}
 	return conflicts
 }
 
-func sharedMLflow(a, b string, port int) bool {
+func sharedMLflow(existingSuite, newSuite string, port int) bool {
 	if port != 5000 {
 		return false
 	}
-	key := strings.Join([]string{a, b}, ":")
-	return key == "boosting:flow" || key == "flow:boosting"
+	return (existingSuite == "boosting" && newSuite == "flow") ||
+		(existingSuite == "flow" && newSuite == "boosting")
 }

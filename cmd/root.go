@@ -5,6 +5,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
+type exitCoder interface {
+	ExitCode() int
+}
+
 // Version contains the current CLI version and is set by main.
 var Version = "dev"
 
@@ -22,6 +26,24 @@ func Execute() {
 	rootCmd.Version = Version
 	if err := rootCmd.Execute(); err != nil {
 		ui.Fail("Error", err.Error())
+		if code, ok := resolveExitCode(err); ok && code >= 0 {
+			exitFunc(code)
+			return
+		}
 		exitFunc(1)
 	}
+}
+
+func resolveExitCode(err error) (int, bool) {
+	for current := err; current != nil; {
+		if coded, ok := current.(exitCoder); ok {
+			return coded.ExitCode(), true
+		}
+		unwrapper, ok := current.(interface{ Unwrap() error })
+		if !ok {
+			break
+		}
+		current = unwrapper.Unwrap()
+	}
+	return 0, false
 }

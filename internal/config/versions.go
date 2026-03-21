@@ -14,11 +14,16 @@ type ImageVersion struct {
 	Previous string `json:"previous"`
 }
 
-// Versions maps suite names to container image versions.
-type Versions map[string]map[string]ImageVersion
+// VersionManifest tracks image versions by suite and container.
+type VersionManifest map[string]map[string]ImageVersion
 
-// LoadVersions reads ~/gradient/config/versions.json or returns an empty structure when missing.
-func LoadVersions() (Versions, error) {
+type installRecord interface {
+	RecordName() string
+	RecordImages() map[string]string
+}
+
+// LoadManifest reads ~/gradient/config/versions.json or returns an empty manifest when missing.
+func LoadManifest() (VersionManifest, error) {
 	if err := workspace.EnsureLayout(); err != nil {
 		return nil, err
 	}
@@ -27,64 +32,82 @@ func LoadVersions() (Versions, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return Versions{}, nil
+			return VersionManifest{}, nil
 		}
 		return nil, fmt.Errorf("read %s: %w", path, err)
 	}
 
-	var versions Versions
-	if err := json.Unmarshal(data, &versions); err != nil {
+	var manifest VersionManifest
+	if err := json.Unmarshal(data, &manifest); err != nil {
 		return nil, fmt.Errorf("unmarshal %s: %w", path, err)
 	}
-	if versions == nil {
-		versions = Versions{}
+	if manifest == nil {
+		manifest = VersionManifest{}
 	}
-	return versions, nil
+	return manifest, nil
 }
 
-// SaveVersions writes ~/gradient/config/versions.json atomically.
-func SaveVersions(versions Versions) error {
-	return writeJSONAtomically(workspace.ConfigPath("versions.json"), versions)
+// SaveManifest writes ~/gradient/config/versions.json atomically.
+func SaveManifest(manifest VersionManifest) error {
+	return writeJSONAtomically(workspace.ConfigPath("versions.json"), manifest)
 }
 
-// SetImageVersion stores a container's current and previous image tags.
-func SetImageVersion(versions Versions, suiteName, containerName, current, previous string) {
-	if _, ok := versions[suiteName]; !ok {
-		versions[suiteName] = map[string]ImageVersion{}
+// RecordUpdate moves current to previous and stores the requested image as current.
+func RecordUpdate(manifest VersionManifest, suiteName, containerName, newImage string) VersionManifest {
+	manifest = ensureManifest(manifest)
+	current := ImageVersion{}
+	if containers, ok := manifest[suiteName]; ok {
+		current = containers[containerName]
 	}
-	versions[suiteName][containerName] = ImageVersion{
-		Current:  current,
-		Previous: previous,
+	if _, ok := manifest[suiteName]; !ok {
+		manifest[suiteName] = map[string]ImageVersion{}
 	}
+	manifest[suiteName][containerName] = ImageVersion{
+		Current:  newImage,
+		Previous: current.Current,
+	}
+	return manifest
 }
 
-// GetImageVersion fetches the stored version information for a container.
-func GetImageVersion(versions Versions, suiteName, containerName string) (ImageVersion, bool) {
-	containers, ok := versions[suiteName]
+// RecordInstall initialises any missing manifest entries for a suite.
+func RecordInstall(manifest VersionManifest, s installRecord) VersionManifest {
+	manifest = ensureManifest(manifest)
+	name := s.RecordName()
+	if _, ok := manifest[name]; !ok {
+		manifest[name] = map[string]ImageVersion{}
+	}
+	for containerName, image := range s.RecordImages() {
+		if _, exists := manifest[name][containerName]; exists {
+			continue
+		}
+		manifest[name][containerName] = ImageVersion{
+			Current:  image,
+			Previous: "",
+		}
+	}
+	return manifest
+}
+
+// SwapForRollback swaps current and previous image tags for every container in a suite.
+func SwapForRollback(manifest VersionManifest, suiteName string) (VersionManifest, error) {
+	manifest = ensureManifest(manifest)
+	containers, ok := manifest[suiteName]
 	if !ok {
-		return ImageVersion{}, false
-	}
-	version, ok := containers[containerName]
-	return version, ok
-}
-
-// RemoveSuiteVersions removes all stored image tags for a suite.
-func RemoveSuiteVersions(versions Versions, suiteName string) {
-	delete(versions, suiteName)
-}
-
-// SwapPrevious swaps current and previous image tags for every container in a suite.
-func SwapPrevious(versions Versions, suiteName string) error {
-	containers, ok := versions[suiteName]
-	if !ok {
-		return fmt.Errorf("suite %s has no recorded versions", suiteName)
+		return manifest, fmt.Errorf("nothing to roll back for suite %s", suiteName)
 	}
 	for name, version := range containers {
 		if version.Previous == "" {
-			return fmt.Errorf("suite %s container %s has no previous image", suiteName, name)
+			return manifest, fmt.Errorf("no previous version for container %s — run concave update first", name)
 		}
 		version.Current, version.Previous = version.Previous, version.Current
 		containers[name] = version
 	}
-	return nil
+	return manifest, nil
+}
+
+func ensureManifest(manifest VersionManifest) VersionManifest {
+	if manifest == nil {
+		return VersionManifest{}
+	}
+	return manifest
 }

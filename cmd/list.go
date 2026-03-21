@@ -1,7 +1,9 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
+	"time"
 
 	"github.com/Gradient-Linux/concave/internal/ui"
 	"github.com/spf13/cobra"
@@ -9,23 +11,50 @@ import (
 
 var listCmd = &cobra.Command{
 	Use:   "list",
-	Short: "List installed suites",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		state, err := loadState()
-		if err != nil {
-			return err
-		}
+	Short: "List all suites and their current state",
+	RunE:  runList,
+}
 
-		ui.Header("Gradient Linux — installed suites")
-		for _, name := range state.Installed {
-			s, err := getSuite(name)
+func runList(cmd *cobra.Command, args []string) error {
+	state, err := loadState()
+	if err != nil {
+		return err
+	}
+	manifest, err := loadManifest()
+	if err != nil {
+		return err
+	}
+
+	installed := make(map[string]struct{}, len(state.Installed))
+	for _, name := range state.Installed {
+		installed[name] = struct{}{}
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	ui.Line("Installed Suites")
+	ui.Line("─────────────────────────────────────────────────────")
+	ui.Line(fmt.Sprintf("%-10s %-32s %s", "Suite", "Version", "Status"))
+	ui.Line("─────────────────────────────────────────────────────")
+	for _, name := range suiteNames() {
+		version := "not installed"
+		status := "—"
+		if _, ok := installed[name]; ok {
+			version = currentImageForFirstContainer(name, manifest)
+			s, err := currentSuiteDefinition(name)
 			if err != nil {
 				return err
 			}
-			ui.Info(name, fmt.Sprintf("containers=%d ports=%s", len(s.Containers), suitePorts(s)))
+			status, err = dockerContainerStatus(ctx, primaryContainer(s))
+			if err != nil {
+				status = "error"
+			}
 		}
-		return nil
-	},
+		ui.Line(fmt.Sprintf("%-10s %-32s %s", name, version, status))
+	}
+	ui.Line("─────────────────────────────────────────────────────")
+	return nil
 }
 
 func init() {

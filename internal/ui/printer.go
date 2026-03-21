@@ -51,6 +51,13 @@ func Header(title string) {
 	_, _ = fmt.Fprintf(output, "%s\n", title)
 }
 
+// Line prints raw formatted output through the shared writer.
+func Line(text string) {
+	outputMu.Lock()
+	defer outputMu.Unlock()
+	_, _ = fmt.Fprintln(output, text)
+}
+
 func printStatus(icon, label, detail string) {
 	outputMu.Lock()
 	defer outputMu.Unlock()

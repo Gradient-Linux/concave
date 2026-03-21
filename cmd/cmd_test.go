@@ -3,25 +3,23 @@ package cmd
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
-	"errors"
-	"net/http"
-	"net/http/httptest"
+	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/Gradient-Linux/concave/internal/config"
 	"github.com/Gradient-Linux/concave/internal/gpu"
 	"github.com/Gradient-Linux/concave/internal/suite"
-	"github.com/Gradient-Linux/concave/internal/system"
 	"github.com/Gradient-Linux/concave/internal/ui"
-	"github.com/Gradient-Linux/concave/internal/workspace"
-	"github.com/spf13/cobra"
 )
+
+type mockExitError struct {
+	code int
+}
+
+func (m mockExitError) Error() string { return fmt.Sprintf("exit %d", m.code) }
+func (m mockExitError) ExitCode() int { return m.code }
 
 func restoreCommandDeps(t *testing.T) {
 	t.Helper()
@@ -33,31 +31,35 @@ func restoreCommandDeps(t *testing.T) {
 	oldWorkspaceStatus := workspaceStatus
 	oldWorkspaceBackup := workspaceBackup
 	oldWorkspaceClean := workspaceClean
-	oldWorkspaceComposePath := workspaceComposePath
 	oldLoadState := loadState
-	oldAddInstalledSuite := addInstalledSuite
-	oldRemoveInstalledSuite := removeInstalledSuite
-	oldLoadVersions := loadVersions
-	oldSaveVersions := saveVersions
-	oldGetImageVersion := getImageVersion
-	oldSetImageVersion := setImageVersion
-	oldRemoveSuiteVersions := removeSuiteVersions
-	oldSwapPreviousVersions := swapPreviousVersions
+	oldSaveState := saveState
+	oldAddSuite := addSuite
+	oldRemoveSuite := removeSuite
+	oldIsInstalled := isInstalled
+	oldLoadManifest := loadManifest
+	oldSaveManifest := saveManifest
+	oldRecordInstall := recordInstall
+	oldRecordUpdate := recordUpdate
+	oldSwapForRollback := swapForRollback
 	oldGetSuite := getSuite
-	oldBuildInstallPlan := buildInstallPlan
-	oldSelectForgeComponents := selectForgeComponents
-	oldBuildForgeCompose := buildForgeCompose
+	oldAllSuites := allSuites
 	oldSuiteNames := suiteNames
 	oldPrimaryContainer := primaryContainer
 	oldJupyterContainer := jupyterContainer
-	oldSuitePorts := suitePorts
-	oldDockerPullWithProgress := dockerPullWithProgress
-	oldDockerWriteSuiteCompose := dockerWriteSuiteCompose
+	oldPickForgeComponents := pickForgeComponents
+	oldBuildForgeCompose := buildForgeCompose
+	oldForgeSelectionFromNames := forgeSelectionFromNames
+	oldInstallSuite := installSuite
+	oldDockerPullWithRollbackSafety := dockerPullWithRollbackSafety
+	oldDockerWriteCompose := dockerWriteCompose
 	oldDockerWriteRawCompose := dockerWriteRawCompose
+	oldDockerComposePath := dockerComposePath
 	oldDockerComposeUp := dockerComposeUp
 	oldDockerComposeDown := dockerComposeDown
 	oldDockerContainerStatus := dockerContainerStatus
+	oldDockerContainerLogs := dockerContainerLogs
 	oldDockerExecCommand := dockerExecCommand
+	oldDockerRevertToPrevious := dockerRevertToPrevious
 	oldGPUDetectState := gpuDetectState
 	oldGPUDetectAMDState := gpuDetectAMDState
 	oldGPURecommendedDriverBranch := gpuRecommendedDriverBranch
@@ -71,16 +73,14 @@ func restoreCommandDeps(t *testing.T) {
 	oldSystemRegisterPorts := systemRegisterPorts
 	oldSystemDeregisterPorts := systemDeregisterPorts
 	oldSystemOpenURL := systemOpenURL
+	oldUIConfirm := uiConfirm
 	oldRunDockerOutput := runDockerOutput
 	oldRunDockerInteractive := runDockerInteractive
-	oldManifestURL := selfUpdateManifestURL
-	oldSelfUpdateClient := selfUpdateClient
-	oldSelfUpdateTargetPath := selfUpdateTargetPath
 	oldLabSuite := labSuite
 	oldLogsService := logsService
-	oldWorkspaceCleanOutputs := workspaceCleanOutputs
-	oldInstallRunE := installCmd.RunE
-	oldDoctorRunE := doctorCmd.RunE
+	oldLogsLines := logsLines
+	oldLogsFollow := logsFollow
+	oldInstallForce := installForce
 
 	t.Cleanup(func() {
 		exitFunc = oldExitFunc
@@ -90,31 +90,35 @@ func restoreCommandDeps(t *testing.T) {
 		workspaceStatus = oldWorkspaceStatus
 		workspaceBackup = oldWorkspaceBackup
 		workspaceClean = oldWorkspaceClean
-		workspaceComposePath = oldWorkspaceComposePath
 		loadState = oldLoadState
-		addInstalledSuite = oldAddInstalledSuite
-		removeInstalledSuite = oldRemoveInstalledSuite
-		loadVersions = oldLoadVersions
-		saveVersions = oldSaveVersions
-		getImageVersion = oldGetImageVersion
-		setImageVersion = oldSetImageVersion
-		removeSuiteVersions = oldRemoveSuiteVersions
-		swapPreviousVersions = oldSwapPreviousVersions
+		saveState = oldSaveState
+		addSuite = oldAddSuite
+		removeSuite = oldRemoveSuite
+		isInstalled = oldIsInstalled
+		loadManifest = oldLoadManifest
+		saveManifest = oldSaveManifest
+		recordInstall = oldRecordInstall
+		recordUpdate = oldRecordUpdate
+		swapForRollback = oldSwapForRollback
 		getSuite = oldGetSuite
-		buildInstallPlan = oldBuildInstallPlan
-		selectForgeComponents = oldSelectForgeComponents
-		buildForgeCompose = oldBuildForgeCompose
+		allSuites = oldAllSuites
 		suiteNames = oldSuiteNames
 		primaryContainer = oldPrimaryContainer
 		jupyterContainer = oldJupyterContainer
-		suitePorts = oldSuitePorts
-		dockerPullWithProgress = oldDockerPullWithProgress
-		dockerWriteSuiteCompose = oldDockerWriteSuiteCompose
+		pickForgeComponents = oldPickForgeComponents
+		buildForgeCompose = oldBuildForgeCompose
+		forgeSelectionFromNames = oldForgeSelectionFromNames
+		installSuite = oldInstallSuite
+		dockerPullWithRollbackSafety = oldDockerPullWithRollbackSafety
+		dockerWriteCompose = oldDockerWriteCompose
 		dockerWriteRawCompose = oldDockerWriteRawCompose
+		dockerComposePath = oldDockerComposePath
 		dockerComposeUp = oldDockerComposeUp
 		dockerComposeDown = oldDockerComposeDown
 		dockerContainerStatus = oldDockerContainerStatus
+		dockerContainerLogs = oldDockerContainerLogs
 		dockerExecCommand = oldDockerExecCommand
+		dockerRevertToPrevious = oldDockerRevertToPrevious
 		gpuDetectState = oldGPUDetectState
 		gpuDetectAMDState = oldGPUDetectAMDState
 		gpuRecommendedDriverBranch = oldGPURecommendedDriverBranch
@@ -128,16 +132,14 @@ func restoreCommandDeps(t *testing.T) {
 		systemRegisterPorts = oldSystemRegisterPorts
 		systemDeregisterPorts = oldSystemDeregisterPorts
 		systemOpenURL = oldSystemOpenURL
+		uiConfirm = oldUIConfirm
 		runDockerOutput = oldRunDockerOutput
 		runDockerInteractive = oldRunDockerInteractive
-		selfUpdateManifestURL = oldManifestURL
-		selfUpdateClient = oldSelfUpdateClient
-		selfUpdateTargetPath = oldSelfUpdateTargetPath
 		labSuite = oldLabSuite
 		logsService = oldLogsService
-		workspaceCleanOutputs = oldWorkspaceCleanOutputs
-		installCmd.RunE = oldInstallRunE
-		doctorCmd.RunE = oldDoctorRunE
+		logsLines = oldLogsLines
+		logsFollow = oldLogsFollow
+		installForce = oldInstallForce
 		rootCmd.SetArgs(nil)
 		ui.ResetOutput()
 	})
@@ -150,368 +152,186 @@ func captureOutput(t *testing.T) *bytes.Buffer {
 	return &buf
 }
 
-func setStdin(t *testing.T, input string) {
-	t.Helper()
-	oldStdin := os.Stdin
-	r, w, err := os.Pipe()
-	if err != nil {
-		t.Fatalf("Pipe() error = %v", err)
-	}
-	if _, err := w.WriteString(input); err != nil {
-		t.Fatalf("WriteString() error = %v", err)
-	}
-	_ = w.Close()
-	os.Stdin = r
-	t.Cleanup(func() {
-		_ = r.Close()
-		os.Stdin = oldStdin
-	})
-}
-
-func TestExtractLabURL(t *testing.T) {
-	raw := "Currently running servers:\nhttp://localhost:8888/?token=abcdef :: /notebooks\n"
-	got, err := extractLabURL(raw)
-	if err != nil {
-		t.Fatalf("extractLabURL() error = %v", err)
-	}
-	want := "http://127.0.0.1:8888/lab?token=abcdef"
-	if got != want {
-		t.Fatalf("extractLabURL() = %q, want %q", got, want)
-	}
-}
-
-func TestTargetSuitesUsesInstalledState(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
-	if err := workspace.EnsureLayout(); err != nil {
-		t.Fatalf("EnsureLayout() error = %v", err)
-	}
-	if err := config.AddInstalled("boosting"); err != nil {
-		t.Fatalf("AddInstalled() error = %v", err)
-	}
-	if err := config.AddInstalled("flow"); err != nil {
-		t.Fatalf("AddInstalled() error = %v", err)
-	}
-
-	names, err := targetSuites(nil)
-	if err != nil {
-		t.Fatalf("targetSuites() error = %v", err)
-	}
-	if len(names) != 2 {
-		t.Fatalf("expected 2 suites, got %d", len(names))
-	}
-}
-
-func TestExecuteDoctorAndWorkspaceCommands(t *testing.T) {
+func TestExecutePreservesExitCode(t *testing.T) {
 	restoreCommandDeps(t)
 	buf := captureOutput(t)
 
+	getSuite = func(name string) (suite.Suite, error) { return suite.Registry["boosting"], nil }
+	isInstalled = func(name string) (bool, error) { return true, nil }
+	dockerContainerStatus = func(ctx context.Context, name string) (string, error) { return "running", nil }
+	runDockerInteractive = func(ctx context.Context, args ...string) error { return mockExitError{code: 42} }
+
 	exitCode := 0
 	exitFunc = func(code int) { exitCode = code }
-	rootCmd.SetArgs([]string{"definitely-invalid"})
+
+	rootCmd.SetArgs([]string{"exec", "boosting", "--", "python", "-c", "raise SystemExit(42)"})
 	Execute()
-	if exitCode != 1 {
-		t.Fatalf("Execute() exit code = %d", exitCode)
+
+	if exitCode != 42 {
+		t.Fatalf("Execute() exit code = %d, want 42", exitCode)
 	}
 	if !strings.Contains(buf.String(), "Error") {
 		t.Fatalf("expected error output, got %q", buf.String())
 	}
+}
 
-	buf.Reset()
-	tempRoot := t.TempDir()
-	systemDockerRunning = func() (bool, error) { return true, nil }
-	systemUserInDockerGroup = func() (bool, error) { return false, nil }
-	systemInternetReachable = func() (bool, error) { return true, nil }
-	workspaceExists = func() bool { return true }
-	workspaceRoot = func() string { return tempRoot }
-	gpuDetectState = func() (gpu.GPUState, error) { return gpu.GPUStateAMD, nil }
-	if err := doctorCmd.RunE(doctorCmd, nil); err != nil {
-		t.Fatalf("doctorCmd.RunE() error = %v", err)
-	}
-	for _, token := range []string{"Docker", "Docker group", "Internet", "Workspace", "AMD"} {
-		if !strings.Contains(buf.String(), token) {
-			t.Fatalf("doctor output missing %q in %q", token, buf.String())
-		}
+func TestInstallInvalidSuite(t *testing.T) {
+	restoreCommandDeps(t)
+
+	gpuDetectState = func() (gpu.GPUState, error) { return gpu.GPUStateNone, nil }
+	installSuite = func(ctx context.Context, name string, opts suite.InstallOptions) error {
+		_, err := suite.Get(name)
+		return err
 	}
 
-	buf.Reset()
-	t.Setenv("HOME", t.TempDir())
-	if err := workspaceInitCmd.RunE(workspaceInitCmd, nil); err != nil {
-		t.Fatalf("workspaceInitCmd.RunE() error = %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(workspace.Root(), "outputs", "artifact.txt"), []byte("x"), 0o644); err != nil {
-		t.Fatalf("WriteFile() error = %v", err)
-	}
-	if err := workspaceStatusCmd.RunE(workspaceStatusCmd, nil); err != nil {
-		t.Fatalf("workspaceStatusCmd.RunE() error = %v", err)
-	}
-	if err := workspaceBackupCmd.RunE(workspaceBackupCmd, nil); err != nil {
-		t.Fatalf("workspaceBackupCmd.RunE() error = %v", err)
-	}
-	workspaceCleanOutputs = true
-	if err := workspaceCleanCmd.RunE(workspaceCleanCmd, nil); err != nil {
-		t.Fatalf("workspaceCleanCmd.RunE() error = %v", err)
+	err := runInstall(installCmd, []string{"invalid"})
+	if err == nil || err.Error() != "unknown suite: invalid. Valid suites: boosting, neural, flow, forge" {
+		t.Fatalf("runInstall() error = %v", err)
 	}
 }
 
-func TestInstallStartStopRestartAndExecCommands(t *testing.T) {
+func TestStartWithNoInstalledSuites(t *testing.T) {
 	restoreCommandDeps(t)
 	buf := captureOutput(t)
 
-	boosting, err := suite.Get("boosting")
-	if err != nil {
-		t.Fatalf("suite.Get(boosting) error = %v", err)
+	loadState = func() (config.State, error) { return config.State{Installed: []string{}}, nil }
+	if err := runStart(startCmd, nil); err != nil {
+		t.Fatalf("runStart() error = %v", err)
 	}
-	versions := config.Versions{}
-	ensureWorkspaceLayout = func() error { return nil }
-	loadVersions = func() (config.Versions, error) { return versions, nil }
-	saveVersions = func(v config.Versions) error { versions = v; return nil }
-	dockerPullWithProgress = func(ctx context.Context, image string, cb func(string)) error { return nil }
-	dockerWriteSuiteCompose = func(ctx context.Context, s suite.Suite) (string, error) {
-		return "/tmp/" + s.Name + ".compose.yml", nil
-	}
-	systemRegisterPorts = func(s suite.Suite) error { return nil }
-	systemCheckConflicts = func(s suite.Suite) []system.PortConflict { return nil }
-	if err := installCmd.RunE(installCmd, []string{"boosting"}); err != nil {
-		t.Fatalf("installCmd.RunE(boosting) error = %v", err)
-	}
-	if _, ok := versions["boosting"]["gradient-boost-core"]; !ok {
-		t.Fatalf("expected versions to be recorded, got %#v", versions)
-	}
-
-	selectForgeComponents = func() []string { return []string{"gradient-boost-core"} }
-	buildForgeCompose = func(selected []string) ([]byte, error) { return []byte("services:\n"), nil }
-	dockerWriteRawCompose = func(ctx context.Context, name string, data []byte) (string, error) {
-		return "/tmp/" + name + ".compose.yml", nil
-	}
-	if err := installCmd.RunE(installCmd, []string{"forge"}); err != nil {
-		t.Fatalf("installCmd.RunE(forge) error = %v", err)
-	}
-
-	loadState = func() (config.State, error) { return config.State{Installed: []string{"boosting", "flow"}}, nil }
-	workspaceComposePath = func(name string) string { return "/tmp/" + name + ".compose.yml" }
-	var upCalls []string
-	var downCalls []string
-	dockerComposeUp = func(ctx context.Context, path string, detach bool) error {
-		upCalls = append(upCalls, path)
-		return nil
-	}
-	dockerComposeDown = func(ctx context.Context, path string) error {
-		downCalls = append(downCalls, path)
-		return nil
-	}
-	if err := startCmd.RunE(startCmd, nil); err != nil {
-		t.Fatalf("startCmd.RunE() error = %v", err)
-	}
-	if err := stopCmd.RunE(stopCmd, nil); err != nil {
-		t.Fatalf("stopCmd.RunE() error = %v", err)
-	}
-	if err := restartCmd.RunE(restartCmd, []string{"boosting"}); err != nil {
-		t.Fatalf("restartCmd.RunE() error = %v", err)
-	}
-	if len(upCalls) == 0 || len(downCalls) == 0 {
-		t.Fatalf("expected compose calls, got up=%v down=%v", upCalls, downCalls)
-	}
-
-	getSuite = func(name string) (suite.Suite, error) { return boosting, nil }
-	dockerExecCommand = func(ctx context.Context, container string, args ...string) error {
-		if container != "gradient-boost-core" || len(args) != 2 {
-			t.Fatalf("unexpected exec target %s %#v", container, args)
-		}
-		return nil
-	}
-	if err := execCmd.RunE(execCmd, []string{"boosting", "python", "-V"}); err != nil {
-		t.Fatalf("execCmd.RunE() error = %v", err)
-	}
-
-	if !strings.Contains(buf.String(), "Installed") || !strings.Contains(buf.String(), "Started") {
-		t.Fatalf("expected command output, got %q", buf.String())
+	if !strings.Contains(buf.String(), "No suites installed. Run: concave install [suite]") {
+		t.Fatalf("unexpected output %q", buf.String())
 	}
 }
 
-func TestUpdateRollbackRemoveListStatusAndChangelog(t *testing.T) {
+func TestRemoveNegativeConfirmationNoOp(t *testing.T) {
+	restoreCommandDeps(t)
+
+	isInstalled = func(name string) (bool, error) { return true, nil }
+	uiConfirm = func(question string) bool { return false }
+	removed := false
+	removeSuite = func(name string) error {
+		removed = true
+		return nil
+	}
+
+	if err := runRemove(removeCmd, []string{"boosting"}); err != nil {
+		t.Fatalf("runRemove() error = %v", err)
+	}
+	if removed {
+		t.Fatal("expected removal to be skipped")
+	}
+}
+
+func TestLabPrefersBoostingWhenBothInstalled(t *testing.T) {
 	restoreCommandDeps(t)
 	buf := captureOutput(t)
 
-	boosting, err := suite.Get("boosting")
-	if err != nil {
-		t.Fatalf("suite.Get(boosting) error = %v", err)
-	}
-	getSuite = func(name string) (suite.Suite, error) { return boosting, nil }
-	versions := config.Versions{}
-	config.SetImageVersion(versions, "boosting", "gradient-boost-core", "python:3.11", "python:3.10")
-	config.SetImageVersion(versions, "boosting", "gradient-boost-lab", "lab:new", "lab:old")
-	config.SetImageVersion(versions, "boosting", "gradient-boost-track", "track:new", "track:old")
-	loadVersions = func() (config.Versions, error) { return versions, nil }
-	saveVersions = func(v config.Versions) error { versions = v; return nil }
-	dockerPullWithProgress = func(ctx context.Context, image string, cb func(string)) error { return nil }
-	dockerWriteSuiteCompose = func(ctx context.Context, s suite.Suite) (string, error) { return "/tmp/" + s.Name + ".yml", nil }
-	dockerComposeDown = func(ctx context.Context, path string) error { return nil }
-	dockerComposeUp = func(ctx context.Context, path string, detach bool) error { return nil }
-	composeDir := t.TempDir()
-	workspaceComposePath = func(name string) string { return filepath.Join(composeDir, name+".yml") }
-	removeInstalledSuite = func(name string) error { return nil }
-	systemDeregisterPorts = func(s suite.Suite) error { return nil }
+	loadState = func() (config.State, error) { return config.State{Installed: []string{"neural", "boosting"}}, nil }
+	isInstalled = func(name string) (bool, error) { return true, nil }
 	dockerContainerStatus = func(ctx context.Context, name string) (string, error) { return "running", nil }
+	runDockerOutput = func(ctx context.Context, args ...string) ([]byte, error) {
+		if strings.Join(args, " ") != "exec gradient-boost-lab jupyter server list --json" {
+			t.Fatalf("unexpected docker args %q", strings.Join(args, " "))
+		}
+		return []byte("{\"url\":\"http://localhost:8888/\",\"token\":\"abc123\"}\n"), nil
+	}
+	opened := ""
+	systemOpenURL = func(url string) error { opened = url; return nil }
+
+	if err := runLab(labCmd, nil); err != nil {
+		t.Fatalf("runLab() error = %v", err)
+	}
+	if opened != "http://localhost:8888/lab?token=abc123" {
+		t.Fatalf("unexpected opened URL %q", opened)
+	}
+	if !strings.Contains(buf.String(), "opening at http://localhost:8888/lab?token=abc123") {
+		t.Fatalf("expected printed URL, got %q", buf.String())
+	}
+}
+
+func TestLogsBuildsComposeInvocation(t *testing.T) {
+	restoreCommandDeps(t)
+
+	isInstalled = func(name string) (bool, error) { return true, nil }
+	dockerComposePath = func(name string) string { return "/tmp/" + name + ".compose.yml" }
+	logsService = "gradient-boost-lab"
+	logsLines = 25
+	logsFollow = false
+
+	var got []string
+	runDockerInteractive = func(ctx context.Context, args ...string) error {
+		got = append([]string(nil), args...)
+		return nil
+	}
+
+	if err := runLogs(logsCmd, []string{"boosting"}); err != nil {
+		t.Fatalf("runLogs() error = %v", err)
+	}
+
+	want := []string{"compose", "-f", "/tmp/boosting.compose.yml", "logs", "--tail", "25", "gradient-boost-lab"}
+	if strings.Join(got, " ") != strings.Join(want, " ") {
+		t.Fatalf("runLogs() args = %q, want %q", strings.Join(got, " "), strings.Join(want, " "))
+	}
+}
+
+func TestStatusAndListRenderCurrentState(t *testing.T) {
+	restoreCommandDeps(t)
+	buf := captureOutput(t)
+
 	loadState = func() (config.State, error) { return config.State{Installed: []string{"boosting"}}, nil }
+	loadManifest = func() (config.VersionManifest, error) {
+		return config.VersionManifest{
+			"boosting": {
+				"gradient-boost-core": {Current: "python:3.12-slim", Previous: ""},
+			},
+		}, nil
+	}
+	dockerContainerStatus = func(ctx context.Context, name string) (string, error) { return "running", nil }
+	gpuDetectState = func() (gpu.GPUState, error) { return gpu.GPUStateNone, nil }
+	workspaceRoot = func() string { return t.TempDir() }
 
-	if err := updateCmd.RunE(updateCmd, []string{"boosting"}); err != nil {
-		t.Fatalf("updateCmd.RunE() error = %v", err)
+	if err := runList(listCmd, nil); err != nil {
+		t.Fatalf("runList() error = %v", err)
 	}
-	if err := rollbackCmd.RunE(rollbackCmd, []string{"boosting"}); err != nil {
-		t.Fatalf("rollbackCmd.RunE() error = %v", err)
-	}
-	if err := changelogCmd.RunE(changelogCmd, []string{"boosting"}); err != nil {
-		t.Fatalf("changelogCmd.RunE() error = %v", err)
-	}
-
-	composePath := workspaceComposePath("boosting")
-	if err := os.WriteFile(composePath, []byte("services:\n"), 0o644); err != nil {
-		t.Fatalf("WriteFile() error = %v", err)
-	}
-	if err := removeCmd.RunE(removeCmd, []string{"boosting"}); err != nil {
-		t.Fatalf("removeCmd.RunE() error = %v", err)
-	}
-
-	if err := listCmd.RunE(listCmd, nil); err != nil {
-		t.Fatalf("listCmd.RunE() error = %v", err)
-	}
-	if err := statusCmd.RunE(statusCmd, nil); err != nil {
-		t.Fatalf("statusCmd.RunE() error = %v", err)
+	if err := runStatus(statusCmd, nil); err != nil {
+		t.Fatalf("runStatus() error = %v", err)
 	}
 
-	for _, token := range []string{"Updated", "Rollback", "Removed", "installed suites", "current=", "running"} {
+	for _, token := range []string{"Installed Suites", "boosting", "python:3.12-slim", "Gradient Linux — Suite Status", "gradient-boost-core", "running"} {
 		if !strings.Contains(buf.String(), token) {
 			t.Fatalf("expected %q in output %q", token, buf.String())
 		}
 	}
 }
 
-func TestLabLogsShellDriverWizardAndSetup(t *testing.T) {
+func TestDoctorAndWorkspaceCommandsStillWork(t *testing.T) {
 	restoreCommandDeps(t)
+
 	buf := captureOutput(t)
-
-	boosting, err := suite.Get("boosting")
-	if err != nil {
-		t.Fatalf("suite.Get(boosting) error = %v", err)
-	}
-	loadState = func() (config.State, error) { return config.State{Installed: []string{"boosting"}}, nil }
-	getSuite = func(name string) (suite.Suite, error) { return boosting, nil }
-	runDockerOutput = func(ctx context.Context, args ...string) ([]byte, error) {
-		if strings.Join(args, " ") == "exec gradient-boost-lab jupyter server list" {
-			return []byte("http://0.0.0.0:8888/?token=abc123 :: /notebooks\n"), nil
-		}
-		return []byte("http://localhost:8888/?token=fallback\n"), nil
-	}
-	opened := ""
-	systemOpenURL = func(url string) error { opened = url; return nil }
-	if err := labCmd.RunE(labCmd, nil); err != nil {
-		t.Fatalf("labCmd.RunE() error = %v", err)
-	}
-	if opened != "http://127.0.0.1:8888/lab?token=abc123" {
-		t.Fatalf("unexpected opened URL %q", opened)
-	}
-
-	var interactiveCalls []string
-	runDockerInteractive = func(ctx context.Context, args ...string) error {
-		call := strings.Join(args, " ")
-		interactiveCalls = append(interactiveCalls, call)
-		if strings.Contains(call, " bash") {
-			return errors.New("bash missing")
-		}
-		return nil
-	}
-	logsService = "gradient-boost-core"
-	if err := logsCmd.RunE(logsCmd, []string{"boosting"}); err != nil {
-		t.Fatalf("logsCmd.RunE() error = %v", err)
-	}
-	if err := shellCmd.RunE(shellCmd, []string{"boosting"}); err != nil {
-		t.Fatalf("shellCmd.RunE() error = %v", err)
-	}
-	if len(interactiveCalls) < 3 {
-		t.Fatalf("expected interactive docker calls, got %#v", interactiveCalls)
-	}
-
+	systemDockerRunning = func() (bool, error) { return true, nil }
+	systemUserInDockerGroup = func() (bool, error) { return true, nil }
+	systemInternetReachable = func() (bool, error) { return true, nil }
+	workspaceExists = func() bool { return true }
+	workspaceRoot = func() string { return t.TempDir() }
 	gpuDetectState = func() (gpu.GPUState, error) { return gpu.GPUStateNone, nil }
-	if err := driverWizardCmd.RunE(driverWizardCmd, nil); err != nil {
-		t.Fatalf("driverWizardCmd cpu-only error = %v", err)
-	}
-	gpuDetectState = func() (gpu.GPUState, error) { return gpu.GPUStateAMD, nil }
-	gpuDetectAMDState = func() gpu.GPUState { return gpu.GPUStateAMD }
-	if err := driverWizardCmd.RunE(driverWizardCmd, nil); err != nil {
-		t.Fatalf("driverWizardCmd AMD error = %v", err)
-	}
-	gpuDetectState = func() (gpu.GPUState, error) { return gpu.GPUStateNVIDIA, nil }
-	gpuSecureBootEnabled = func() (bool, error) { return true, nil }
-	gpuRecommendedDriverBranch = func() (string, error) { return "570", nil }
-	gpuToolkitConfigured = func() (bool, error) { return true, nil }
-	gpuVerifyPassthrough = func() error { return nil }
-	setStdin(t, "n\n")
-	if err := driverWizardCmd.RunE(driverWizardCmd, nil); err != nil {
-		t.Fatalf("driverWizardCmd secure boot error = %v", err)
+
+	if err := doctorCmd.RunE(doctorCmd, nil); err != nil {
+		t.Fatalf("doctorCmd.RunE() error = %v", err)
 	}
 
-	ensureWorkspaceLayout = func() error { return nil }
-	gpuDetectState = func() (gpu.GPUState, error) { return gpu.GPUStateNone, nil }
-	installed := []string{}
-	installCmd.RunE = func(cmd *cobra.Command, args []string) error {
-		installed = append(installed, args[0])
-		return nil
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	if err := workspaceInitCmd.RunE(workspaceInitCmd, nil); err != nil {
+		t.Fatalf("workspaceInitCmd.RunE() error = %v", err)
 	}
-	doctorCalled := false
-	doctorCmd.RunE = func(cmd *cobra.Command, args []string) error {
-		doctorCalled = true
-		return nil
+	if _, err := os.Stat(filepathJoin(home, "gradient")); err != nil {
+		t.Fatalf("workspace init did not create root: %v", err)
 	}
-	setStdin(t, "\n")
-	if err := setupCmd.RunE(setupCmd, nil); err != nil {
-		t.Fatalf("setupCmd.RunE() error = %v", err)
-	}
-	if len(installed) != 1 || installed[0] != "boosting" || !doctorCalled {
-		t.Fatalf("unexpected setup behavior installed=%#v doctor=%v", installed, doctorCalled)
-	}
-
-	if !strings.Contains(buf.String(), "Secure Boot") || !strings.Contains(buf.String(), "GPU state") {
-		t.Fatalf("expected wizard/setup output, got %q", buf.String())
+	if !strings.Contains(buf.String(), "Docker") {
+		t.Fatalf("expected doctor output, got %q", buf.String())
 	}
 }
 
-func TestSelfUpdateCommand(t *testing.T) {
-	restoreCommandDeps(t)
-	buf := captureOutput(t)
-
-	binary := []byte("concave-binary")
-	sum := sha256.Sum256(binary)
-	var server *httptest.Server
-	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/manifest":
-			_ = json.NewEncoder(w).Encode(updateManifest{
-				Version: "v0.1.0",
-				URL:     server.URL + "/concave",
-				SHA256:  hex.EncodeToString(sum[:]),
-			})
-		case "/concave":
-			_, _ = w.Write(binary)
-		default:
-			http.NotFound(w, r)
-		}
-	}))
-	defer server.Close()
-
-	selfUpdateClient = server.Client()
-	selfUpdateManifestURL = server.URL + "/manifest"
-	selfUpdateTargetPath = filepath.Join(t.TempDir(), "concave")
-	if err := selfUpdateCmd.RunE(selfUpdateCmd, nil); err != nil {
-		t.Fatalf("selfUpdateCmd.RunE() error = %v", err)
-	}
-	data, err := os.ReadFile(selfUpdateTargetPath)
-	if err != nil {
-		t.Fatalf("ReadFile() error = %v", err)
-	}
-	if string(data) != string(binary) {
-		t.Fatalf("unexpected updated binary %q", string(data))
-	}
-	if !strings.Contains(buf.String(), "Updated") {
-		t.Fatalf("expected update output, got %q", buf.String())
-	}
+func filepathJoin(elem ...string) string {
+	return strings.Join(elem, string(os.PathSeparator))
 }

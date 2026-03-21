@@ -4,10 +4,22 @@ import (
 	"testing"
 
 	"github.com/Gradient-Linux/concave/internal/config"
-	"github.com/Gradient-Linux/concave/internal/docker"
 	"github.com/Gradient-Linux/concave/internal/suite"
 	"github.com/Gradient-Linux/concave/internal/workspace"
 )
+
+type benchmarkRecord struct {
+	name   string
+	images map[string]string
+}
+
+func (b benchmarkRecord) RecordName() string {
+	return b.name
+}
+
+func (b benchmarkRecord) RecordImages() map[string]string {
+	return b.images
+}
 
 func BenchmarkSuiteLookup(b *testing.B) {
 	for i := 0; i < b.N; i++ {
@@ -17,36 +29,25 @@ func BenchmarkSuiteLookup(b *testing.B) {
 	}
 }
 
-func BenchmarkRenderSuiteCompose(b *testing.B) {
+func BenchmarkManifestRoundTrip(b *testing.B) {
 	b.StopTimer()
 	b.Setenv("HOME", b.TempDir())
 	_ = workspace.EnsureLayout()
-	s, err := suite.Get("boosting")
-	if err != nil {
-		b.Fatal(err)
+	record := benchmarkRecord{
+		name: "boosting",
+		images: map[string]string{
+			"gradient-boost-core": "python:3.12-slim",
+		},
 	}
 	b.StartTimer()
 
 	for i := 0; i < b.N; i++ {
-		if _, err := docker.RenderSuiteCompose(s); err != nil {
+		manifest := config.RecordInstall(config.VersionManifest{}, record)
+		manifest = config.RecordUpdate(manifest, "boosting", "gradient-boost-core", "python:3.12-alpine")
+		if err := config.SaveManifest(manifest); err != nil {
 			b.Fatal(err)
 		}
-	}
-}
-
-func BenchmarkVersionsRoundTrip(b *testing.B) {
-	b.StopTimer()
-	b.Setenv("HOME", b.TempDir())
-	_ = workspace.EnsureLayout()
-	b.StartTimer()
-
-	for i := 0; i < b.N; i++ {
-		versions := config.Versions{}
-		config.SetImageVersion(versions, "boosting", "gradient-boost-core", "python:3.12-slim", "")
-		if err := config.SaveVersions(versions); err != nil {
-			b.Fatal(err)
-		}
-		if _, err := config.LoadVersions(); err != nil {
+		if _, err := config.LoadManifest(); err != nil {
 			b.Fatal(err)
 		}
 	}

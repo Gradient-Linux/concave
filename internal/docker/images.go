@@ -4,27 +4,51 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 )
 
-// PullWithProgress tags an existing image as previous and then pulls the target image.
+// PullWithProgress preserves the current image and then pulls the new one.
 func PullWithProgress(ctx context.Context, image string, cb func(string)) error {
+	return PullWithRollbackSafety(ctx, image, cb)
+}
+
+// PullWithRollbackSafety preserves the current image and then pulls the new one.
+func PullWithRollbackSafety(ctx context.Context, image string, onProgress func(string)) error {
 	if err := TagAsPrevious(image); err != nil {
 		return err
 	}
-	return Pull(ctx, image, cb)
+	return Pull(ctx, image, onProgress)
+}
+
+// ImageExists reports whether an image tag exists locally.
+func ImageExists(image string) (bool, error) {
+	ctx, cancel := withDefaultTimeout(context.Background())
+	defer cancel()
+
+	out, err := commandRunner.RunCommand(ctx, "docker", "image", "inspect", image)
+	if err != nil {
+		if isMissingImage(err, out) {
+			return false, nil
+		}
+		return false, fmt.Errorf("docker image inspect %s: %w", image, err)
+	}
+	return true, nil
 }
 
 // TagAsPrevious tags an existing image as <repo>:gradient-previous when present.
 func TagAsPrevious(image string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	if _, err := runCombinedOutput(ctx, "docker", "image", "inspect", image); err != nil {
+	exists, err := ImageExists(image)
+	if err != nil {
+		return err
+	}
+	if !exists {
 		return nil
 	}
+
+	ctx, cancel := withDefaultTimeout(context.Background())
+	defer cancel()
+
 	previous := previousImageTag(image)
-	if _, err := runCombinedOutput(ctx, "docker", "tag", image, previous); err != nil {
+	if _, err := commandRunner.RunCommand(ctx, "docker", "tag", image, previous); err != nil {
 		return fmt.Errorf("docker tag %s %s: %w", image, previous, err)
 	}
 	return nil
@@ -32,14 +56,19 @@ func TagAsPrevious(image string) error {
 
 // RevertToPrevious retags <repo>:gradient-previous back to the requested image tag.
 func RevertToPrevious(image string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	previous := previousImageTag(image)
+	exists, err := ImageExists(previous)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return fmt.Errorf("previous image not found: %s", previous)
+	}
+
+	ctx, cancel := withDefaultTimeout(context.Background())
 	defer cancel()
 
-	previous := previousImageTag(image)
-	if _, err := runCombinedOutput(ctx, "docker", "image", "inspect", previous); err != nil {
-		return fmt.Errorf("inspect previous image %s: %w", previous, err)
-	}
-	if _, err := runCombinedOutput(ctx, "docker", "tag", previous, image); err != nil {
+	if _, err := commandRunner.RunCommand(ctx, "docker", "tag", previous, image); err != nil {
 		return fmt.Errorf("docker tag %s %s: %w", previous, image, err)
 	}
 	return nil
@@ -52,4 +81,9 @@ func previousImageTag(image string) string {
 		return image[:lastColon] + ":gradient-previous"
 	}
 	return image + ":gradient-previous"
+}
+
+func isMissingImage(err error, out []byte) bool {
+	text := strings.ToLower(err.Error() + " " + string(out))
+	return strings.Contains(text, "no such image") || strings.Contains(text, "no such object")
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/Gradient-Linux/concave/internal/gpu"
 	"github.com/Gradient-Linux/concave/internal/suite"
 	"github.com/Gradient-Linux/concave/internal/system"
+	"github.com/Gradient-Linux/concave/internal/ui"
 	"github.com/Gradient-Linux/concave/internal/workspace"
 )
 
@@ -22,34 +23,38 @@ var (
 	workspaceStatus       = workspace.Status
 	workspaceBackup       = workspace.Backup
 	workspaceClean        = workspace.CleanOutputs
-	workspaceComposePath  = workspace.ComposePath
 
-	loadState            = config.LoadState
-	addInstalledSuite    = config.AddInstalled
-	removeInstalledSuite = config.RemoveInstalled
-	loadVersions         = config.LoadVersions
-	saveVersions         = config.SaveVersions
-	getImageVersion      = config.GetImageVersion
-	setImageVersion      = config.SetImageVersion
-	removeSuiteVersions  = config.RemoveSuiteVersions
-	swapPreviousVersions = config.SwapPrevious
+	loadState       = config.LoadState
+	saveState       = config.SaveState
+	addSuite        = config.AddSuite
+	removeSuite     = config.RemoveSuite
+	isInstalled     = config.IsInstalled
+	loadManifest    = config.LoadManifest
+	saveManifest    = config.SaveManifest
+	recordInstall   = config.RecordInstall
+	recordUpdate    = config.RecordUpdate
+	swapForRollback = config.SwapForRollback
 
-	getSuite              = suite.Get
-	buildInstallPlan      = suite.BuildInstallPlan
-	selectForgeComponents = suite.SelectForgeComponents
-	buildForgeCompose     = suite.BuildForgeCompose
-	suiteNames            = suite.Names
-	primaryContainer      = suite.PrimaryContainer
-	jupyterContainer      = suite.JupyterContainer
-	suitePorts            = suite.SuitePorts
+	getSuite                = suite.Get
+	allSuites               = suite.All
+	suiteNames              = suite.Names
+	primaryContainer        = suite.PrimaryContainer
+	jupyterContainer        = suite.JupyterContainer
+	pickForgeComponents     = suite.PickComponents
+	buildForgeCompose       = suite.BuildForgeCompose
+	forgeSelectionFromNames = suite.SelectionFromContainerNames
+	installSuite            = suite.Install
 
-	dockerPullWithProgress  = docker.PullWithProgress
-	dockerWriteSuiteCompose = docker.WriteSuiteCompose
-	dockerWriteRawCompose   = docker.WriteRawCompose
-	dockerComposeUp         = docker.ComposeUp
-	dockerComposeDown       = docker.ComposeDown
-	dockerContainerStatus   = docker.ContainerStatus
-	dockerExecCommand       = docker.Exec
+	dockerPullWithRollbackSafety = docker.PullWithRollbackSafety
+	dockerWriteCompose           = docker.WriteCompose
+	dockerWriteRawCompose        = docker.WriteRawCompose
+	dockerComposePath            = docker.ComposePath
+	dockerComposeUp              = docker.ComposeUp
+	dockerComposeDown            = docker.ComposeDown
+	dockerContainerStatus        = docker.ContainerStatus
+	dockerContainerLogs          = docker.ContainerLogs
+	dockerExecCommand            = docker.Exec
+	dockerRevertToPrevious       = docker.RevertToPrevious
 
 	gpuDetectState             = gpu.Detect
 	gpuDetectAMDState          = gpu.DetectAMD
@@ -65,6 +70,7 @@ var (
 	systemRegisterPorts     = system.Register
 	systemDeregisterPorts   = system.Deregister
 	systemOpenURL           = system.OpenURL
+	uiConfirm               = ui.Confirm
 
 	runDockerOutput = func(ctx context.Context, args ...string) ([]byte, error) {
 		return exec.CommandContext(ctx, "docker", args...).CombinedOutput()
@@ -77,3 +83,22 @@ var (
 		return command.Run()
 	}
 )
+
+func init() {
+	suite.SetConflictChecker(func(s suite.Suite, installed []string) ([]suite.PortConflict, error) {
+		conflicts, err := systemCheckConflicts(s, installed)
+		if err != nil {
+			return nil, err
+		}
+		mapped := make([]suite.PortConflict, 0, len(conflicts))
+		for _, conflict := range conflicts {
+			mapped = append(mapped, suite.PortConflict{
+				Port:          conflict.Port,
+				ExistingSuite: conflict.ExistingSuite,
+				NewSuite:      conflict.NewSuite,
+				Service:       conflict.Service,
+			})
+		}
+		return mapped, nil
+	})
+}

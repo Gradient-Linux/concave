@@ -12,36 +12,37 @@ var startCmd = &cobra.Command{
 	Use:   "start [suite]",
 	Short: "Start all or one suite",
 	Args:  cobra.MaximumNArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		names, err := targetSuites(args)
+	RunE:  runStart,
+}
+
+func runStart(cmd *cobra.Command, args []string) error {
+	names, err := installedSuiteTargets(args, false)
+	if err != nil {
+		return err
+	}
+	if len(names) == 0 {
+		ui.Info("Start", "No suites installed. Run: concave install [suite]")
+		return nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	for _, name := range names {
+		ui.Info("Starting", name)
+		if err := dockerComposeUp(ctx, dockerComposePath(name), true); err != nil {
+			return err
+		}
+		s, err := currentSuiteDefinition(name)
 		if err != nil {
 			return err
 		}
-
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-		defer cancel()
-		for _, name := range names {
-			if err := dockerComposeUp(ctx, workspaceComposePath(name), true); err != nil {
-				return err
-			}
-			ui.Pass("Started", name)
+		if err := systemRegisterPorts(s); err != nil {
+			return err
 		}
-		return nil
-	},
-}
-
-func targetSuites(args []string) ([]string, error) {
-	if len(args) == 1 {
-		if _, err := getSuite(args[0]); err != nil {
-			return nil, err
-		}
-		return []string{args[0]}, nil
+		ui.Pass("Started", name)
 	}
-	state, err := loadState()
-	if err != nil {
-		return nil, err
-	}
-	return state.Installed, nil
+	return nil
 }
 
 func init() {
