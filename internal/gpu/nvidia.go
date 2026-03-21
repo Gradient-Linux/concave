@@ -71,6 +71,7 @@ func SecureBootEnabled() (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("mokutil --sb-state: %w", err)
 	}
-	text := strings.ToLower(string(out))
-	return strings.Contains(text, "secureboot enabled"), nil
+	text := strings.ToLower(strings.TrimSpace(string(out)))
+	text = strings.ReplaceAll(text, " ", "")
+	return strings.Contains(text, "securebootenabled"), nil
 }

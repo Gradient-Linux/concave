@@ -1,9 +1,12 @@
 package gpu
 
 import (
+	"bytes"
 	"errors"
 	"strings"
 	"testing"
+
+	"github.com/Gradient-Linux/concave/internal/ui"
 )
 
 type mockRunner struct {
@@ -62,8 +65,29 @@ func TestDetectAMDAndCPUOnly(t *testing.T) {
 	}
 }
 
+func TestDetectPrefersNVIDIAWhenBothArePresent(t *testing.T) {
+	previous := runner
+	t.Cleanup(func() { runner = previous })
+
+	runner = &mockRunner{
+		outputs: map[string][]byte{
+			"nvidia-smi ": []byte("ok"),
+			"rocminfo ":   []byte("ok"),
+		},
+	}
+
+	state, err := Detect()
+	if err != nil {
+		t.Fatalf("Detect() error = %v", err)
+	}
+	if state != GPUStateNVIDIA {
+		t.Fatalf("Detect() = %v, want %v", state, GPUStateNVIDIA)
+	}
+}
+
 func TestDriverBranchForCapability(t *testing.T) {
 	cases := map[string]string{
+		"7.0": "535",
 		"7.5": "535",
 		"8.0": "560",
 		"8.6": "560",
@@ -78,6 +102,10 @@ func TestDriverBranchForCapability(t *testing.T) {
 		if got != want {
 			t.Fatalf("DriverBranchForCapability(%q) = %q, want %q", capability, got, want)
 		}
+	}
+
+	if _, err := DriverBranchForCapability("6.1"); err == nil {
+		t.Fatal("expected unsupported capability error")
 	}
 }
 
@@ -118,10 +146,50 @@ func TestStringAndNVIDIAHelpers(t *testing.T) {
 	}
 }
 
+func TestNVIDIAHelpersErrorPathsAndSecureBootParsing(t *testing.T) {
+	previous := runner
+	t.Cleanup(func() { runner = previous })
+
+	runner = &mockRunner{
+		errors: map[string]error{
+			"nvidia-smi --query-gpu=compute_cap --format=csv,noheader":                errors.New("missing"),
+			"nvidia-ctk runtime configure --runtime=docker --dry-run":                 errors.New("not configured"),
+			"docker run --rm --gpus all nvidia/cuda:12.4-base-ubuntu24.04 nvidia-smi": errors.New("failed"),
+		},
+		outputs: map[string][]byte{
+			"mokutil --sb-state": []byte("Secure Boot enabled"),
+		},
+	}
+
+	if _, err := ComputeCapability(); err == nil {
+		t.Fatal("expected compute capability error")
+	}
+	if _, err := ToolkitConfigured(); err == nil {
+		t.Fatal("expected toolkit error")
+	}
+	if err := VerifyPassthrough(); err == nil {
+		t.Fatal("expected passthrough error")
+	}
+	enabled, err := SecureBootEnabled()
+	if err != nil {
+		t.Fatalf("SecureBootEnabled() error = %v", err)
+	}
+	if !enabled {
+		t.Fatal("expected secure boot to be detected as enabled")
+	}
+}
+
 func TestDetectAMDWarns(t *testing.T) {
+	var buf bytes.Buffer
+	ui.SetOutput(&buf)
+	defer ui.ResetOutput()
+
 	state := DetectAMD()
 	if state != GPUStateAMD {
 		t.Fatalf("DetectAMD() = %v", state)
+	}
+	if !strings.Contains(buf.String(), "ROCm support coming in Gradient Linux v0.3") {
+		t.Fatalf("expected AMD warning output, got %q", buf.String())
 	}
 }
 
