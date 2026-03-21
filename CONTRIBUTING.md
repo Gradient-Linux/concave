@@ -30,6 +30,9 @@ concave/
   main.go
   go.mod
   cmd/
+    concave-tui/
+      main.go
+      model/
   internal/
   templates/
   scripts/
@@ -159,7 +162,12 @@ Examples:
 ### General
 
 - Use Go 1.25-compatible code. CI runs on Go 1.26.1.
-- `github.com/spf13/cobra v1.8.0` is the only approved direct external dependency.
+- Direct dependencies are intentionally minimal and require maintainer approval.
+- Approved direct dependencies today are:
+  - `github.com/spf13/cobra v1.8.0`
+  - `github.com/charmbracelet/bubbletea`
+  - `github.com/charmbracelet/lipgloss`
+  - `github.com/charmbracelet/bubbles`
 - New dependencies require explicit maintainer approval.
 - Keep functions small and easy to test.
 - Wrap errors with context.
@@ -206,8 +214,11 @@ Run these locally before opening a PR:
 ```bash
 go test ./...
 go test -race ./...
+go test ./cmd/concave-tui/...
+go test -race ./cmd/concave-tui/...
 go vet ./...
 CGO_ENABLED=0 go build -o concave .
+CGO_ENABLED=0 go build -o concave-tui ./cmd/concave-tui/
 ```
 
 Coverage gate:

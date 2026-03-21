@@ -1,13 +1,14 @@
 # Gradient Linux — concave
 
-`concave` is the control-plane CLI for Gradient Linux, an Ubuntu 24.04 LTS distribution
-built for machine learning engineers, data scientists, and MLOps teams. The host stays
-thin: Ubuntu, Docker Engine, and the `concave` binary. Suites, models, notebooks,
-tracking, orchestration, and observability stay inside containers.
+`concave` is the control-plane interface for Gradient Linux, an Ubuntu 24.04 LTS
+distribution built for machine learning engineers, data scientists, and MLOps teams.
+The host stays thin: Ubuntu, Docker Engine, and the `concave` binaries. Suites,
+models, notebooks, tracking, orchestration, and observability stay inside containers.
 
 ## What This Repo Contains
 
-- a statically compiled Go CLI
+- a statically compiled Go CLI (`concave`)
+- a full-screen terminal interface (`concave-tui`)
 - Docker Compose templates for Boosting, Neural, Flow, and Forge
 - workspace lifecycle management for `~/gradient/`
 - suite install, start, stop, update, rollback, and status flows
@@ -57,8 +58,10 @@ document under `docs/suites/*.md`.
 
 ```bash
 go build -o concave .
+go build -o concave-tui ./cmd/concave-tui/
 ./concave doctor
 ./concave workspace init
+./concave-tui --help
 ```
 
 ## Suite Reference
@@ -69,7 +72,8 @@ go build -o concave .
 - [Forge](docs/suites/forge.md): user-selected composition of components from other suites
 
 See [docs/suite-guide.md](docs/suite-guide.md) for the high-level suite map and
-[docs/concave-reference.md](docs/concave-reference.md) for command coverage.
+[docs/concave-reference.md](docs/concave-reference.md) for command coverage, including
+the Phase 7 TUI parity map.
 
 ## Contributing
 
