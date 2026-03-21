@@ -34,6 +34,8 @@ concave/
   templates/
   scripts/
   tests/
+    integration/
+    benchmarks/
   docs/
     architecture.md
     concave-reference.md
@@ -218,6 +220,12 @@ Integration tests:
 - live under `tests/integration/`
 - must skip unless `CONCAVE_INTEGRATION=1` is set
 - are for real environment validation, not default CI execution
+
+Example:
+
+```bash
+CONCAVE_INTEGRATION=1 go test ./tests/integration -v
+```
 
 GPU-related changes must include manual validation notes in the PR description.
 
