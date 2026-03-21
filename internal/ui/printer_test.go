@@ -48,8 +48,12 @@ func TestHeaderConfirmAndChecklist(t *testing.T) {
 	defer ResetOutput()
 
 	Header("Title")
+	Line("Raw line")
 	if !strings.Contains(buf.String(), "Title") {
 		t.Fatalf("expected header output, got %q", buf.String())
+	}
+	if !strings.Contains(buf.String(), "Raw line") {
+		t.Fatalf("expected line output, got %q", buf.String())
 	}
 
 	oldStdin := os.Stdin

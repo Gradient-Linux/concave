@@ -28,3 +28,29 @@ func TestRunSetsCommandVersion(t *testing.T) {
 		t.Fatalf("cmd.Version = %q", cmd.Version)
 	}
 }
+
+func TestMainUsesInjectedVersion(t *testing.T) {
+	previousExecute := executeCommand
+	previousCmdVersion := cmd.Version
+	previousMainVersion := Version
+	t.Cleanup(func() {
+		executeCommand = previousExecute
+		cmd.Version = previousCmdVersion
+		Version = previousMainVersion
+	})
+
+	called := false
+	executeCommand = func() {
+		called = true
+	}
+	Version = "v9.9.9"
+
+	main()
+
+	if !called {
+		t.Fatal("expected main to invoke executeCommand")
+	}
+	if cmd.Version != "v9.9.9" {
+		t.Fatalf("cmd.Version = %q", cmd.Version)
+	}
+}

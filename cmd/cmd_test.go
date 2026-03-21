@@ -3,8 +3,15 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -12,6 +19,7 @@ import (
 	"github.com/Gradient-Linux/concave/internal/gpu"
 	"github.com/Gradient-Linux/concave/internal/suite"
 	"github.com/Gradient-Linux/concave/internal/ui"
+	"github.com/spf13/cobra"
 )
 
 type mockExitError struct {
@@ -152,6 +160,24 @@ func captureOutput(t *testing.T) *bytes.Buffer {
 	return &buf
 }
 
+func setStdin(t *testing.T, input string) {
+	t.Helper()
+	oldStdin := os.Stdin
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("Pipe() error = %v", err)
+	}
+	if _, err := w.WriteString(input); err != nil {
+		t.Fatalf("WriteString() error = %v", err)
+	}
+	_ = w.Close()
+	os.Stdin = r
+	t.Cleanup(func() {
+		_ = r.Close()
+		os.Stdin = oldStdin
+	})
+}
+
 func TestExecutePreservesExitCode(t *testing.T) {
 	restoreCommandDeps(t)
 	buf := captureOutput(t)
@@ -172,6 +198,21 @@ func TestExecutePreservesExitCode(t *testing.T) {
 	}
 	if !strings.Contains(buf.String(), "Error") {
 		t.Fatalf("expected error output, got %q", buf.String())
+	}
+}
+
+func TestResolveExitCodeFindsWrappedExitErrors(t *testing.T) {
+	if code, ok := resolveExitCode(mockExitError{code: 7}); !ok || code != 7 {
+		t.Fatalf("resolveExitCode(direct) = %d, %v", code, ok)
+	}
+
+	wrapped := fmt.Errorf("outer: %w", mockExitError{code: 19})
+	if code, ok := resolveExitCode(wrapped); !ok || code != 19 {
+		t.Fatalf("resolveExitCode(wrapped) = %d, %v", code, ok)
+	}
+
+	if code, ok := resolveExitCode(errors.New("plain")); ok || code != 0 {
+		t.Fatalf("resolveExitCode(plain) = %d, %v", code, ok)
 	}
 }
 
@@ -200,6 +241,42 @@ func TestStartWithNoInstalledSuites(t *testing.T) {
 	}
 	if !strings.Contains(buf.String(), "No suites installed. Run: concave install [suite]") {
 		t.Fatalf("unexpected output %q", buf.String())
+	}
+}
+
+func TestStartStartsInstalledSuiteAndRegistersPorts(t *testing.T) {
+	restoreCommandDeps(t)
+	buf := captureOutput(t)
+
+	isInstalled = func(name string) (bool, error) { return true, nil }
+	dockerComposePath = func(name string) string { return "/tmp/" + name + ".compose.yml" }
+
+	var composeCalls []string
+	dockerComposeUp = func(ctx context.Context, path string, detach bool) error {
+		composeCalls = append(composeCalls, path)
+		if !detach {
+			t.Fatal("expected detached compose up")
+		}
+		return nil
+	}
+
+	registered := ""
+	systemRegisterPorts = func(s suite.Suite) error {
+		registered = s.Name
+		return nil
+	}
+
+	if err := runStart(startCmd, []string{"boosting"}); err != nil {
+		t.Fatalf("runStart() error = %v", err)
+	}
+	if len(composeCalls) != 1 || composeCalls[0] != "/tmp/boosting.compose.yml" {
+		t.Fatalf("unexpected compose calls %#v", composeCalls)
+	}
+	if registered != "boosting" {
+		t.Fatalf("systemRegisterPorts() suite = %q", registered)
+	}
+	if !strings.Contains(buf.String(), "Started") {
+		t.Fatalf("expected start output, got %q", buf.String())
 	}
 }
 
@@ -304,6 +381,60 @@ func TestStatusAndListRenderCurrentState(t *testing.T) {
 	}
 }
 
+func TestStatusHelpersCoverPortAndFallbackBranches(t *testing.T) {
+	restoreCommandDeps(t)
+
+	boosting := suite.Registry["boosting"]
+	if got := containerPortSummary(boosting, boosting.Containers[1]); got != "8888" {
+		t.Fatalf("containerPortSummary(boosting lab) = %q", got)
+	}
+	if got := containerPortSummary(boosting, boosting.Containers[2]); got != "5000" {
+		t.Fatalf("containerPortSummary(boosting track) = %q", got)
+	}
+
+	neural := suite.Registry["neural"]
+	if got := containerPortSummary(neural, neural.Containers[1]); got != "8000,8080" {
+		t.Fatalf("containerPortSummary(neural infer) = %q", got)
+	}
+
+	flow := suite.Registry["flow"]
+	cases := map[string]string{
+		"gradient-flow-airflow":    "8080",
+		"gradient-flow-prometheus": "9090",
+		"gradient-flow-grafana":    "3000",
+		"gradient-flow-store":      "9001",
+		"gradient-flow-serve":      "3100",
+	}
+	for _, container := range flow.Containers {
+		if want, ok := cases[container.Name]; ok {
+			if got := containerPortSummary(flow, container); got != want {
+				t.Fatalf("containerPortSummary(%s) = %q, want %q", container.Name, got, want)
+			}
+		}
+	}
+	if got := containerPortSummary(flow, flow.Containers[0]); got != "5000" {
+		t.Fatalf("containerPortSummary(flow mlflow) = %q", got)
+	}
+	if got := containerPortSummary(suite.Suite{}, suite.Container{Name: "unknown"}); got != "—" {
+		t.Fatalf("containerPortSummary(unknown) = %q", got)
+	}
+
+	gpuDetectState = func() (gpu.GPUState, error) { return gpu.GPUStateAMD, nil }
+	if line, ok := currentGPULine(); !ok || !strings.Contains(line, "AMD detected") {
+		t.Fatalf("currentGPULine(AMD) = %q, %v", line, ok)
+	}
+
+	gpuDetectState = func() (gpu.GPUState, error) { return gpu.GPUStateNone, nil }
+	if line, ok := currentGPULine(); ok || line != "" {
+		t.Fatalf("currentGPULine(none) = %q, %v", line, ok)
+	}
+
+	workspaceRoot = func() string { return filepath.Join(t.TempDir(), "missing") }
+	if line := currentWorkspaceLine(); !strings.Contains(line, "Workspace") {
+		t.Fatalf("currentWorkspaceLine() = %q", line)
+	}
+}
+
 func TestDoctorAndWorkspaceCommandsStillWork(t *testing.T) {
 	restoreCommandDeps(t)
 
@@ -332,6 +463,260 @@ func TestDoctorAndWorkspaceCommandsStillWork(t *testing.T) {
 	}
 }
 
+func TestUpdateRollbackChangelogAndHelpers(t *testing.T) {
+	restoreCommandDeps(t)
+	buf := captureOutput(t)
+
+	manifest := config.VersionManifest{
+		"boosting": {
+			"gradient-boost-core":  {Current: "python:3.11-slim", Previous: "python:3.10-slim"},
+			"gradient-boost-lab":   {Current: "lab:old", Previous: "lab:older"},
+			"gradient-boost-track": {Current: "track:old", Previous: "track:older"},
+		},
+	}
+	isInstalled = func(name string) (bool, error) { return true, nil }
+	loadManifest = func() (config.VersionManifest, error) { return manifest, nil }
+	saveManifest = func(next config.VersionManifest) error {
+		manifest = next
+		return nil
+	}
+	dockerPullWithRollbackSafety = func(ctx context.Context, image string, cb func(string)) error { return nil }
+	dockerWriteCompose = func(name string) (string, error) { return "/tmp/" + name + ".compose.yml", nil }
+	dockerComposeUp = func(ctx context.Context, path string, detach bool) error { return nil }
+	dockerComposeDown = func(ctx context.Context, path string) error { return nil }
+	dockerComposePath = func(name string) string { return "/tmp/" + name + ".compose.yml" }
+	dockerContainerStatus = func(ctx context.Context, name string) (string, error) { return "running", nil }
+
+	if err := runUpdate(updateCmd, []string{"boosting"}); err != nil {
+		t.Fatalf("runUpdate() error = %v", err)
+	}
+	if err := runRollback(rollbackCmd, []string{"boosting"}); err != nil {
+		t.Fatalf("runRollback() error = %v", err)
+	}
+	if err := runChangelog(changelogCmd, []string{"boosting"}); err != nil {
+		t.Fatalf("runChangelog() error = %v", err)
+	}
+
+	if manifest["boosting"]["gradient-boost-core"].Current == "" {
+		t.Fatalf("expected manifest to stay populated, got %#v", manifest)
+	}
+	for _, token := range []string{"Update", "Rollback", "suite changelog"} {
+		if !strings.Contains(buf.String(), token) {
+			t.Fatalf("expected %q in output %q", token, buf.String())
+		}
+	}
+}
+
+func TestRemoveStopRestartAndShellCommands(t *testing.T) {
+	restoreCommandDeps(t)
+
+	isInstalled = func(name string) (bool, error) { return true, nil }
+	uiConfirm = func(question string) bool { return true }
+	manifest := config.VersionManifest{
+		"boosting": {
+			"gradient-boost-core":  {Current: "python:3.12-slim"},
+			"gradient-boost-lab":   {Current: "quay.io/jupyter/base-notebook:python-3.11.6"},
+			"gradient-boost-track": {Current: "ghcr.io/mlflow/mlflow:2.14"},
+		},
+	}
+	loadManifest = func() (config.VersionManifest, error) { return manifest, nil }
+	saveManifest = func(next config.VersionManifest) error {
+		manifest = next
+		return nil
+	}
+	loadState = func() (config.State, error) { return config.State{Installed: []string{"boosting", "flow"}}, nil }
+	dockerComposePath = func(name string) string { return "/tmp/" + name + ".compose.yml" }
+	removeSuite = func(name string) error { return nil }
+	systemDeregisterPorts = func(s suite.Suite) error { return nil }
+	systemRegisterPorts = func(s suite.Suite) error { return nil }
+	dockerContainerStatus = func(ctx context.Context, name string) (string, error) { return "running", nil }
+
+	var interactiveCalls []string
+	runDockerInteractive = func(ctx context.Context, args ...string) error {
+		call := strings.Join(args, " ")
+		interactiveCalls = append(interactiveCalls, call)
+		if strings.Contains(call, " bash") {
+			return fmt.Errorf("bash missing")
+		}
+		return nil
+	}
+	dockerComposeDown = func(ctx context.Context, path string) error { return nil }
+	dockerComposeUp = func(ctx context.Context, path string, detach bool) error { return nil }
+
+	if err := runRemove(removeCmd, []string{"boosting"}); err != nil {
+		t.Fatalf("runRemove() error = %v", err)
+	}
+	if err := runStop(stopCmd, nil); err != nil {
+		t.Fatalf("runStop() error = %v", err)
+	}
+	if err := runRestart(restartCmd, []string{"boosting"}); err != nil {
+		t.Fatalf("runRestart() error = %v", err)
+	}
+	if err := runShell(shellCmd, []string{"boosting"}); err != nil {
+		t.Fatalf("runShell() error = %v", err)
+	}
+	if len(interactiveCalls) == 0 {
+		t.Fatal("expected interactive docker calls")
+	}
+	if _, ok := manifest["boosting"]; ok {
+		t.Fatalf("expected boosting manifest entry to be removed, got %#v", manifest)
+	}
+}
+
+func TestHelperFunctionsAndFallbackPaths(t *testing.T) {
+	restoreCommandDeps(t)
+
+	loadState = func() (config.State, error) { return config.State{Installed: []string{"flow", "boosting"}}, nil }
+	names, err := installedSuiteTargets(nil, false)
+	if err != nil {
+		t.Fatalf("installedSuiteTargets() error = %v", err)
+	}
+	if strings.Join(names, ",") != "boosting,flow" {
+		t.Fatalf("unexpected ordered suites %#v", names)
+	}
+
+	loadManifest = func() (config.VersionManifest, error) {
+		return config.VersionManifest{
+			"forge": {
+				"gradient-boost-core":  {Current: "python:3.12-slim"},
+				"gradient-boost-lab":   {Current: "quay.io/jupyter/base-notebook:python-3.11.6"},
+				"gradient-flow-mlflow": {Current: "ghcr.io/mlflow/mlflow:2.14"},
+			},
+		}, nil
+	}
+	rawComposeWritten := false
+	dockerWriteRawCompose = func(name string, data []byte) (string, error) {
+		rawComposeWritten = strings.Contains(string(data), "gradient-boost-core")
+		return "/tmp/" + name + ".compose.yml", nil
+	}
+	forgeSuite, err := currentSuiteDefinition("forge")
+	if err != nil {
+		t.Fatalf("currentSuiteDefinition() error = %v", err)
+	}
+	if len(containerNames(forgeSuite)) == 0 {
+		t.Fatalf("expected forge containers, got %#v", forgeSuite)
+	}
+	if _, err := writeComposeForCurrentState("forge"); err != nil {
+		t.Fatalf("writeComposeForCurrentState() error = %v", err)
+	}
+	if !rawComposeWritten {
+		t.Fatal("expected forge compose to be rendered through raw writer")
+	}
+
+	rawURL, err := extractLabURL("http://0.0.0.0:8888/?token=fallback :: /notebooks")
+	if err != nil {
+		t.Fatalf("extractLabURL() fallback error = %v", err)
+	}
+	if rawURL != "http://127.0.0.1:8888/lab?token=fallback" {
+		t.Fatalf("unexpected fallback URL %q", rawURL)
+	}
+}
+
+func TestGPUAndWorkspaceStatusHelpers(t *testing.T) {
+	restoreCommandDeps(t)
+
+	tmp := t.TempDir()
+	script := filepath.Join(tmp, "nvidia-smi")
+	if err := os.WriteFile(script, []byte("#!/bin/sh\necho 'NVIDIA RTX 4090, 24576 MiB'\n"), 0o755); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	t.Setenv("PATH", tmp+string(os.PathListSeparator)+os.Getenv("PATH"))
+	gpuDetectState = func() (gpu.GPUState, error) { return gpu.GPUStateNVIDIA, nil }
+	workspaceRoot = func() string { return tmp }
+
+	line, ok := currentGPULine()
+	if !ok || !strings.Contains(line, "NVIDIA RTX 4090") {
+		t.Fatalf("currentGPULine() = %q, %v", line, ok)
+	}
+
+	workspaceLine := currentWorkspaceLine()
+	if !strings.Contains(workspaceLine, "Workspace") {
+		t.Fatalf("unexpected workspace line %q", workspaceLine)
+	}
+}
+
+func TestDriverWizardSetupAndSelfUpdate(t *testing.T) {
+	restoreCommandDeps(t)
+	buf := captureOutput(t)
+
+	gpuDetectState = func() (gpu.GPUState, error) { return gpu.GPUStateNone, nil }
+	if err := driverWizardCmd.RunE(driverWizardCmd, nil); err != nil {
+		t.Fatalf("driverWizardCmd cpu-only error = %v", err)
+	}
+
+	gpuDetectState = func() (gpu.GPUState, error) { return gpu.GPUStateAMD, nil }
+	gpuDetectAMDState = func() gpu.GPUState { return gpu.GPUStateAMD }
+	if err := driverWizardCmd.RunE(driverWizardCmd, nil); err != nil {
+		t.Fatalf("driverWizardCmd AMD error = %v", err)
+	}
+
+	gpuDetectState = func() (gpu.GPUState, error) { return gpu.GPUStateNVIDIA, nil }
+	gpuSecureBootEnabled = func() (bool, error) { return true, nil }
+	gpuRecommendedDriverBranch = func() (string, error) { return "570", nil }
+	gpuToolkitConfigured = func() (bool, error) { return true, nil }
+	gpuVerifyPassthrough = func() error { return nil }
+	setStdin(t, "n\n")
+	if err := driverWizardCmd.RunE(driverWizardCmd, nil); err != nil {
+		t.Fatalf("driverWizardCmd secure boot error = %v", err)
+	}
+
+	ensureWorkspaceLayout = func() error { return nil }
+	gpuDetectState = func() (gpu.GPUState, error) { return gpu.GPUStateNone, nil }
+	installed := []string{}
+	installCmd.RunE = func(cmd *cobra.Command, args []string) error {
+		installed = append(installed, args[0])
+		return nil
+	}
+	doctorCalled := false
+	doctorCmd.RunE = func(cmd *cobra.Command, args []string) error {
+		doctorCalled = true
+		return nil
+	}
+	setStdin(t, "\n")
+	if err := setupCmd.RunE(setupCmd, nil); err != nil {
+		t.Fatalf("setupCmd.RunE() error = %v", err)
+	}
+	if len(installed) != 1 || installed[0] != "boosting" || !doctorCalled {
+		t.Fatalf("unexpected setup behavior installed=%#v doctor=%v", installed, doctorCalled)
+	}
+
+	binary := []byte("concave-binary")
+	sum := sha256.Sum256(binary)
+	var server *httptest.Server
+	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/manifest":
+			_ = json.NewEncoder(w).Encode(updateManifest{
+				Version: "v0.1.0",
+				URL:     server.URL + "/concave",
+				SHA256:  hex.EncodeToString(sum[:]),
+			})
+		case "/concave":
+			_, _ = w.Write(binary)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	selfUpdateClient = server.Client()
+	selfUpdateManifestURL = server.URL + "/manifest"
+	selfUpdateTargetPath = filepath.Join(t.TempDir(), "concave")
+	if err := selfUpdateCmd.RunE(selfUpdateCmd, nil); err != nil {
+		t.Fatalf("selfUpdateCmd.RunE() error = %v", err)
+	}
+	data, err := os.ReadFile(selfUpdateTargetPath)
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+	if string(data) != string(binary) {
+		t.Fatalf("unexpected updated binary %q", string(data))
+	}
+	if !strings.Contains(buf.String(), "Updated") {
+		t.Fatalf("expected update output, got %q", buf.String())
+	}
+}
+
 func filepathJoin(elem ...string) string {
-	return strings.Join(elem, string(os.PathSeparator))
+	return filepath.Join(elem...)
 }

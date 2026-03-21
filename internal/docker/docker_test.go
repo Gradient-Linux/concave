@@ -39,6 +39,52 @@ func TestPullStreamsProgress(t *testing.T) {
 	}
 }
 
+func TestRunnerAndClientWrappers(t *testing.T) {
+	oldRunner := commandRunner
+	oldInteractive := runInteractiveCommand
+	t.Cleanup(func() {
+		commandRunner = oldRunner
+		runInteractiveCommand = oldInteractive
+	})
+
+	var calls []string
+	commandRunner = mockRunner{run: func(ctx context.Context, name string, args ...string) ([]byte, error) {
+		calls = append(calls, strings.Join(args, " "))
+		switch args[0] {
+		case "inspect":
+			return []byte("running"), nil
+		default:
+			return []byte("ok"), nil
+		}
+	}}
+	runInteractiveCommand = func(ctx context.Context, name string, args ...string) error {
+		calls = append(calls, strings.Join(args, " "))
+		return nil
+	}
+
+	if _, err := (DefaultRunner{}).RunCommand(context.Background(), "sh", "-c", "printf ok"); err != nil {
+		t.Fatalf("DefaultRunner.RunCommand() error = %v", err)
+	}
+	if err := Run(context.Background(), "busybox", "echo", "ok"); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if err := Exec(context.Background(), "demo", "echo", "ok"); err != nil {
+		t.Fatalf("Exec() error = %v", err)
+	}
+	if err := ComposeUp(context.Background(), "/tmp/demo.yml", true); err != nil {
+		t.Fatalf("ComposeUp() error = %v", err)
+	}
+	if err := ComposeDown(context.Background(), "/tmp/demo.yml"); err != nil {
+		t.Fatalf("ComposeDown() error = %v", err)
+	}
+	if err := ContainerLogs(context.Background(), "demo", true); err != nil {
+		t.Fatalf("ContainerLogs() error = %v", err)
+	}
+	if len(calls) == 0 {
+		t.Fatal("expected docker calls")
+	}
+}
+
 func TestContainerStatusNormalizesStates(t *testing.T) {
 	oldRunner := commandRunner
 	t.Cleanup(func() { commandRunner = oldRunner })
@@ -204,11 +250,40 @@ func TestImageHelpers(t *testing.T) {
 	if err := PullWithRollbackSafety(context.Background(), "busybox:1.36", nil); err != nil {
 		t.Fatalf("PullWithRollbackSafety() error = %v", err)
 	}
+	if err := PullWithProgress(context.Background(), "busybox:1.36", nil); err != nil {
+		t.Fatalf("PullWithProgress() error = %v", err)
+	}
 	if err := RevertToPrevious("busybox:1.36"); err != nil {
 		t.Fatalf("RevertToPrevious() error = %v", err)
 	}
 	if len(calls) == 0 {
 		t.Fatal("expected docker calls")
+	}
+}
+
+func TestImageHelpersMissingPaths(t *testing.T) {
+	oldRunner := commandRunner
+	t.Cleanup(func() { commandRunner = oldRunner })
+
+	commandRunner = mockRunner{run: func(ctx context.Context, name string, args ...string) ([]byte, error) {
+		return []byte("no such image"), errors.New("missing")
+	}}
+
+	exists, err := ImageExists("busybox:missing")
+	if err != nil {
+		t.Fatalf("ImageExists() error = %v", err)
+	}
+	if exists {
+		t.Fatal("expected image to be missing")
+	}
+	if err := TagAsPrevious("busybox:missing"); err != nil {
+		t.Fatalf("TagAsPrevious() error = %v", err)
+	}
+	if err := RevertToPrevious("busybox:missing"); err == nil {
+		t.Fatal("expected RevertToPrevious() to fail without previous tag")
+	}
+	if !isMissingImage(errors.New("missing"), []byte("No such image")) {
+		t.Fatal("expected missing-image helper to match")
 	}
 }
 

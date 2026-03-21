@@ -28,6 +28,37 @@ func TestGetUnknownSuiteIncludesValidNames(t *testing.T) {
 	}
 }
 
+func TestRegistryHelpersReturnStableMetadata(t *testing.T) {
+	names := Names()
+	if got, want := strings.Join(names, ","), "boosting,neural,flow,forge"; got != want {
+		t.Fatalf("Names() = %q, want %q", got, want)
+	}
+
+	suites := All()
+	if len(suites) != 4 {
+		t.Fatalf("All() len = %d", len(suites))
+	}
+	if suites[0].Name != "boosting" || suites[3].Name != "forge" {
+		t.Fatalf("All() order = %#v", suites)
+	}
+
+	if primary := PrimaryContainer(Registry["boosting"]); primary != "gradient-boost-core" {
+		t.Fatalf("PrimaryContainer() = %q", primary)
+	}
+	if primary := PrimaryContainer(Suite{}); primary != "" {
+		t.Fatalf("PrimaryContainer(empty) = %q", primary)
+	}
+
+	container, ok := JupyterContainer(Registry["neural"])
+	if !ok || container != "gradient-neural-lab" {
+		t.Fatalf("JupyterContainer(neural) = %q, %v", container, ok)
+	}
+	container, ok = JupyterContainer(Suite{Name: "empty"})
+	if ok || container != "" {
+		t.Fatalf("JupyterContainer(empty) = %q, %v", container, ok)
+	}
+}
+
 func TestPickComponentsDeduplicatesJupyter(t *testing.T) {
 	oldPrompt := promptChecklist
 	t.Cleanup(func() { promptChecklist = oldPrompt })
