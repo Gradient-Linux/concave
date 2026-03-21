@@ -3,7 +3,6 @@
 ## Binaries
 
 - `concave`: the Cobra-based CLI
-- `concave-tui`: the Bubble Tea terminal interface with parity for dashboard, suite lifecycle, logs, workspace, and doctor flows
 
 ## Core Commands
 
@@ -29,14 +28,6 @@
 - `concave lab`
 - `concave shell [suite]`
 - `concave exec [suite] -- [command]`
-
-## TUI Views
-
-- `Dashboard`: high-level suite health, GPU summary, workspace free space
-- `Suites`: install, remove, update, rollback, start, stop, restart, shell, exec, lab
-- `Logs`: live per-container log following with search and bounded history
-- `Workspace`: usage, backup, and outputs cleanup
-- `Doctor`: asynchronous system and suite health checks
 
 ## Setup Commands
 

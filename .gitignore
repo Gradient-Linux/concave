@@ -1,10 +1,8 @@
 /concave
-/concave-tui
 /concave-arm64
 dist/
 AGENTS.md
 /cover.out
-/tui-cover.out
 coverage.out
 coverage.html
 mem.out

@@ -16,8 +16,6 @@ jobs:
           go-version: "1.26.1"
       - run: go test ./...
       - run: go test -race ./...
-      - run: go test ./cmd/concave-tui/...
-      - run: go test -race ./cmd/concave-tui/...
       - run: go vet ./...
       - run: go test ./... -coverprofile=cover.out
       - run: |
@@ -41,15 +39,10 @@ jobs:
           ' package-cover.out
       - run: go test ./tests/benchmarks -run '^$' -bench . -benchtime=1x
       - run: CGO_ENABLED=0 go build -o concave .
-      - run: CGO_ENABLED=0 go build -o concave-tui ./cmd/concave-tui/
       - run: |
           size=$(stat -c%s concave)
           echo "binary size: ${size} bytes"
           test "$size" -le 20000000
-      - run: |
-          size=$(stat -c%s concave-tui)
-          echo "tui binary size: ${size} bytes"
-          test "$size" -le 25000000
       - run: |
           if command -v golangci-lint >/dev/null 2>&1; then
             golangci-lint run ./...
