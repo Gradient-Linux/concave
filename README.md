@@ -1,52 +1,94 @@
 # Gradient Linux — concave
 
-`concave` is the control-plane interface for Gradient Linux, an Ubuntu 24.04 LTS
-distribution built for machine learning engineers, data scientists, and MLOps teams.
-The host stays thin: Ubuntu, Docker Engine, and the `concave` binary. Suites,
-models, notebooks, tracking, orchestration, and observability stay inside containers.
+`concave` is the infrastructure control plane for Gradient Linux. It is responsible
+for host checks, suite lifecycle, workspace management, GPU integration, and the
+authenticated local API server used by the terminal and browser frontends.
 
-## What This Repo Contains
+The project is intentionally infrastructure-first:
 
-- a statically compiled Go CLI (`concave`)
-- an authenticated local control-plane server (`concave serve`)
-- Docker Compose templates for Boosting, Neural, Flow, and Forge
-- workspace lifecycle management for `~/gradient/`
-- suite install, start, stop, update, rollback, and status flows
-- Unix-group-based role resolution for CLI, TUI, and web clients
-- JWT-backed API sessions for `concave serve`
-- GPU detection and NVIDIA driver guidance
-- system and suite documentation
+- headless-safe CLI behavior
+- Docker- and workspace-centric lifecycle control
+- packaged systemd deployment for the local control plane
+- Unix-group-backed authorization for machine operations
+- a stable API for `concave-web` and `concave-tui`
 
-## Architecture
+## Responsibilities
 
-- `cmd/` contains the Cobra command surface
-- `internal/ui/` owns terminal output, spinners, and prompts
-- `internal/system/` checks host prerequisites, browser launch, and shared port logic
-- `internal/workspace/` manages the fixed `~/gradient/` layout
-- `internal/docker/` renders Compose files, validates them, and wraps Docker operations
-- `internal/suite/` defines suite metadata and lifecycle helpers
-- `internal/config/` persists `state.json` and `versions.json`
-- `internal/gpu/` detects GPU state and drives NVIDIA-specific checks
-- `internal/auth/` owns Unix role resolution, PAM auth, JWT issuance, and permission checks
-- `internal/api/` exposes the authenticated `concave serve` HTTP and WebSocket control plane
-- `templates/` is a flat directory of the canonical Compose YAML templates
-- `docs/` holds system documentation and suite reference material
+This repository owns:
 
-## Documentation Layout
+- the `concave` CLI
+- the `concave serve` local control-plane server
+- suite installation and lifecycle logic for Boosting, Neural, Flow, and Forge
+- `~/gradient/` or service-root workspace layout management
+- Docker Compose template rendering and validation
+- GPU detection and driver guidance
+- Unix-group role resolution, PAM login, JWT issuance, and permission checks
+- packaged system integration: systemd unit, sudoers helper, shell completions, and release artifacts
 
-The repo keeps contributor-facing documentation in two places:
+This repository does not own:
 
-- system-wide documentation lives in [docs](docs)
-- suite-level documentation lives in [docs/suites](docs/suites)
-- inline godoc lives in the Go source
+- the Bubble Tea terminal UI
+- the browser UI
+- marketing or site content
 
-There is no `services/` documentation tree. Service-level details are part of each suite
-document under `docs/suites/*.md`.
+Those live in `concave-tui` and `concave-web`.
 
-## Workspace Layout
+## Repository layout
+
+- `cmd/`: Cobra command surface, including `serve` and `whoami`
+- `internal/api/`: authenticated HTTP and WebSocket control plane
+- `internal/auth/`: Unix group roles, PAM auth, JWT sessions, permission checks
+- `internal/config/`: workspace state, version manifests, setup-state persistence
+- `internal/docker/`: Compose rendering, Docker process wrappers, retries, image helpers
+- `internal/gpu/`: GPU detection, NVIDIA/AMD helpers
+- `internal/suite/`: suite registry, Forge composition, installers, health checks
+- `internal/system/`: locks, exit codes, logging, crash logs, privileged helpers, host checks
+- `internal/ui/`: CLI output, prompts, and progress display
+- `internal/workspace/`: fixed workspace layout, status, backup, and cleanup
+- `templates/`: canonical Compose YAML templates
+- `scripts/`: build, release, service, apt, and postinstall helpers
+- `docs/`: operator, contributor, suite, and API documentation
+
+## Runtime model
+
+The normal deployment model is:
+
+1. Ubuntu host
+2. Docker Engine
+3. `concave` installed as a system binary
+4. `concave-serve.service` running as `gradient-svc`
+5. frontends talking to `concave serve`
+
+The control plane exposes machine state without forcing the host binary itself to
+grow a UI dependency tree.
+
+## Role model
+
+Access is derived from Unix groups:
+
+- `gradient-viewer`
+- `gradient-developer`
+- `gradient-operator`
+- `gradient-admin`
+
+The CLI resolves the current user's role directly from the host. Browser and TUI
+clients authenticate through `concave serve`, which uses PAM for password checking
+and JWTs for session continuity.
+
+Useful commands:
+
+```bash
+concave whoami
+concave serve --addr 127.0.0.1:7777
+```
+
+## Workspace layout
+
+User-facing installs default to `~/gradient/`. Service deployments use the
+configured service root, typically `/var/lib/gradient`.
 
 ```text
-~/gradient/
+gradient/
   data/
   notebooks/
   models/
@@ -56,67 +98,80 @@ document under `docs/suites/*.md`.
   compose/
   config/
   backups/
+  logs/
 ```
 
-## Quick Start
+## Quick start
 
-Ubuntu 24.04 package install:
+Package install on an Ubuntu host:
 
 ```bash
 curl -fsSL https://packages.gradientlinux.io/install.sh | sudo bash
+concave doctor
 concave setup
+concave whoami
 ```
 
-Manual local build:
+Manual local development:
 
 ```bash
+go test ./...
+go test -race ./...
 go build -o concave .
 ./concave doctor
 ./concave workspace init
 ```
 
-`concave --verbose` enables structured debug logging on stderr without changing stdout.
-`scripts/build.sh` builds the static binary and generates shell completions into
-`scripts/completions/`.
-
-Phase 3 adds multi-user and frontend-facing control surfaces:
+Verbose mode:
 
 ```bash
-concave whoami
-concave serve --addr 127.0.0.1:7777
+concave --verbose status
 ```
 
-`concave serve` is intended to run under the packaged `concave-serve.service`
-systemd unit as `gradient-svc`. Authentication and authorization are derived from
-Unix group membership:
+This keeps normal command output on stdout and writes structured diagnostics to stderr.
 
-- `gradient-viewer`
-- `gradient-developer`
-- `gradient-operator`
-- `gradient-admin`
+## Core commands
 
-## Suite Reference
+- `concave doctor`
+- `concave workspace init|status|backup|clean`
+- `concave install|remove|start|stop|restart|update|rollback <suite>`
+- `concave logs <suite>`
+- `concave lab`
+- `concave whoami`
+- `concave serve`
 
-- [Boosting](docs/suites/boosting.md): CPU-first experimentation, JupyterLab, MLflow
-- [Neural](docs/suites/neural.md): GPU-oriented training, inference, notebooks
-- [Flow](docs/suites/flow.md): tracking, orchestration, storage, dashboards, serving
-- [Forge](docs/suites/forge.md): user-selected composition of components from other suites
+See [docs/concave-reference.md](docs/concave-reference.md) for the full command
+surface.
 
-See [docs/suite-guide.md](docs/suite-guide.md) for the high-level suite map and
-[docs/concave-reference.md](docs/concave-reference.md) for command coverage.
-See [docs/system-admin.md](docs/system-admin.md) for auth groups, `concave serve`,
-and packaged service behavior.
+## Suite map
 
-## Companion Projects
+- [Boosting](docs/suites/boosting.md): notebooks, experiments, MLflow
+- [Neural](docs/suites/neural.md): GPU-oriented training, inference, lab workflows
+- [Flow](docs/suites/flow.md): orchestration, dashboards, storage, serving
+- [Forge](docs/suites/forge.md): user-selected composition across suite components
 
-- `concave-tui` is maintained as a separate repository so the infrastructure CLI can
-  stay headless-safe and free of Bubble Tea dependencies.
+## Documentation
+
+Start with [docs/README.md](docs/README.md).
+
+Important docs:
+
+- [docs/architecture.md](docs/architecture.md)
+- [docs/api.md](docs/api.md)
+- [docs/system-admin.md](docs/system-admin.md)
+- [docs/concave-reference.md](docs/concave-reference.md)
+- [docs/suite-guide.md](docs/suite-guide.md)
+- [docs/gpu-setup.md](docs/gpu-setup.md)
+
+## Companion repos
+
+- `concave-web`: browser control plane and proxy
+- `concave-tui`: terminal UI client
 
 ## Contributing
 
-Contributor expectations, repository conventions, and pull request rules live in
-[CONTRIBUTING.md](CONTRIBUTING.md). Maintainers may use additional private automation or
-internal workflows, but the public contribution contract is defined here in the repo.
+Contributor-facing rules live in [CONTRIBUTING.md](CONTRIBUTING.md). Public docs,
+README updates, and behavior changes should land together.
 
 ## License
 
