@@ -6,7 +6,7 @@ COMMIT="${COMMIT:-$(git rev-parse --short HEAD)}"
 BUILD_DATE="${BUILD_DATE:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
 LDFLAGS="-s -w -X main.Version=${VERSION} -X main.Commit=${COMMIT} -X main.BuildDate=${BUILD_DATE}"
 
-CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+CGO_ENABLED=1 GOOS=linux GOARCH=amd64 \
   go build -ldflags="${LDFLAGS}" \
   -o concave .
 echo "Built: concave ($(du -sh concave | cut -f1))"

@@ -4,6 +4,10 @@
 services:
   gradient-boost-core:
     image: python:3.12-slim
+    labels:
+      gradient.managed: "true"
+      gradient.suite: "forge"
+      gradient.user: "{{GRADIENT_USER}}"
     command: ["sleep", "infinity"]
     restart: unless-stopped
     profiles: ["disabled"]
@@ -17,6 +21,10 @@ services:
 
   gradient-boost-lab:
     image: quay.io/jupyter/base-notebook:python-3.11.6
+    labels:
+      gradient.managed: "true"
+      gradient.suite: "forge"
+      gradient.user: "{{GRADIENT_USER}}"
     restart: unless-stopped
     profiles: ["disabled"]
     ports:
@@ -31,6 +39,10 @@ services:
 
   gradient-boost-track:
     image: ghcr.io/mlflow/mlflow:v2.14.1
+    labels:
+      gradient.managed: "true"
+      gradient.suite: "forge"
+      gradient.user: "{{GRADIENT_USER}}"
     restart: unless-stopped
     profiles: ["disabled"]
     ports:
@@ -42,6 +54,10 @@ services:
 
   gradient-neural-torch:
     image: pytorch/pytorch:2.6.0-cuda12.4-cudnn9-runtime
+    labels:
+      gradient.managed: "true"
+      gradient.suite: "forge"
+      gradient.user: "{{GRADIENT_USER}}"
     command: ["sleep", "infinity"]
     restart: unless-stopped
     profiles: ["disabled"]
@@ -54,6 +70,10 @@ services:
 
   gradient-neural-infer:
     image: nvidia/cuda:12.4.1-runtime-ubuntu22.04
+    labels:
+      gradient.managed: "true"
+      gradient.suite: "forge"
+      gradient.user: "{{GRADIENT_USER}}"
     command: ["sleep", "infinity"]
     restart: unless-stopped
     profiles: ["disabled"]
@@ -69,6 +89,10 @@ services:
 
   gradient-neural-lab:
     image: quay.io/jupyter/base-notebook:python-3.11.6
+    labels:
+      gradient.managed: "true"
+      gradient.suite: "forge"
+      gradient.user: "{{GRADIENT_USER}}"
     restart: unless-stopped
     profiles: ["disabled"]
     ports:
@@ -82,6 +106,10 @@ services:
 
   gradient-flow-mlflow:
     image: ghcr.io/mlflow/mlflow:v2.14.1
+    labels:
+      gradient.managed: "true"
+      gradient.suite: "forge"
+      gradient.user: "{{GRADIENT_USER}}"
     restart: unless-stopped
     profiles: ["disabled"]
     ports:
@@ -93,6 +121,10 @@ services:
 
   gradient-flow-airflow:
     image: apache/airflow:2.9.0
+    labels:
+      gradient.managed: "true"
+      gradient.suite: "forge"
+      gradient.user: "{{GRADIENT_USER}}"
     restart: unless-stopped
     profiles: ["disabled"]
     ports:
@@ -107,6 +139,10 @@ services:
 
   gradient-flow-prometheus:
     image: prom/prometheus:v2.51.0
+    labels:
+      gradient.managed: "true"
+      gradient.suite: "forge"
+      gradient.user: "{{GRADIENT_USER}}"
     restart: unless-stopped
     profiles: ["disabled"]
     ports:
@@ -117,6 +153,10 @@ services:
 
   gradient-flow-grafana:
     image: grafana/grafana:10.4.0
+    labels:
+      gradient.managed: "true"
+      gradient.suite: "forge"
+      gradient.user: "{{GRADIENT_USER}}"
     restart: unless-stopped
     profiles: ["disabled"]
     ports:
@@ -127,6 +167,10 @@ services:
 
   gradient-flow-store:
     image: minio/minio:RELEASE.2024-04-06T05-26-02Z
+    labels:
+      gradient.managed: "true"
+      gradient.suite: "forge"
+      gradient.user: "{{GRADIENT_USER}}"
     command: ["server", "/data", "--console-address", ":9001"]
     restart: unless-stopped
     profiles: ["disabled"]
@@ -139,6 +183,10 @@ services:
 
   gradient-flow-serve:
     image: bentoml/model-server:latest
+    labels:
+      gradient.managed: "true"
+      gradient.suite: "forge"
+      gradient.user: "{{GRADIENT_USER}}"
     command: ["sleep", "infinity"]
     restart: unless-stopped
     profiles: ["disabled"]

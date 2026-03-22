@@ -169,7 +169,7 @@ func TestInstallTargetAndWriteSelectedCompose(t *testing.T) {
 		writeRawComposeFile = oldWriteRaw
 	})
 
-	target, selection, err := installTarget("boosting")
+	target, selection, err := installTarget("boosting", InstallOptions{})
 	if err != nil {
 		t.Fatalf("installTarget(boosting) error = %v", err)
 	}
@@ -198,7 +198,7 @@ func TestInstallTargetAndWriteSelectedCompose(t *testing.T) {
 			"Boosting | JupyterLab (~1 GB, shared with Neural)",
 		}
 	}
-	target, selection, err = installTarget("forge")
+	target, selection, err = installTarget("forge", InstallOptions{})
 	if err != nil {
 		t.Fatalf("installTarget(forge) error = %v", err)
 	}

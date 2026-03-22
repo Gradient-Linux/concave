@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Gradient-Linux/concave/internal/auth"
 	"github.com/Gradient-Linux/concave/internal/config"
 	"github.com/Gradient-Linux/concave/internal/gpu"
 	"github.com/Gradient-Linux/concave/internal/suite"
@@ -32,6 +33,8 @@ func (m mockExitError) ExitCode() int { return m.code }
 
 func restoreCommandDeps(t *testing.T) {
 	t.Helper()
+
+	restoreRole := auth.SetCLIRoleForTesting(auth.RoleAdmin)
 
 	oldExitFunc := exitFunc
 	oldEnsureWorkspaceLayout := ensureWorkspaceLayout
@@ -100,6 +103,7 @@ func restoreCommandDeps(t *testing.T) {
 	oldInstallForce := installForce
 
 	t.Cleanup(func() {
+		restoreRole()
 		exitFunc = oldExitFunc
 		ensureWorkspaceLayout = oldEnsureWorkspaceLayout
 		workspaceExists = oldWorkspaceExists

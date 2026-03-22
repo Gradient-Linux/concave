@@ -40,6 +40,7 @@ concave/
     architecture.md
     concave-reference.md
     gpu-setup.md
+    system-admin.md
     suite-guide.md
     suites/
       boosting.md
@@ -165,6 +166,10 @@ Examples:
 - Direct dependencies are intentionally minimal and require maintainer approval.
 - Approved direct dependencies today are:
   - `github.com/spf13/cobra v1.8.0`
+  - `github.com/msteinert/pam`
+  - `github.com/golang-jwt/jwt/v5`
+  - `github.com/gorilla/websocket`
+  - `github.com/creack/pty`
 - New dependencies require explicit maintainer approval.
 - Keep functions small and easy to test.
 - Wrap errors with context.
@@ -192,8 +197,10 @@ Examples:
 
 ### Privilege boundaries
 
-- Only `internal/gpu/nvidia.go` and `cmd/driver_wizard.go` may invoke `sudo`.
-- Do not write to `/etc`, `/usr`, or `/var` outside approved GPU/setup flows.
+- Direct system privilege escalation is tightly scoped.
+- CLI privilege helpers live in `internal/system/privileged.go`.
+- Server-side host controls are mediated by the packaged `gradient-svc` systemd service and its locked sudoers rule.
+- Do not write to `/etc`, `/usr`, or `/var` outside approved packaging, service, or GPU/setup flows.
 - Do not use `--privileged` or `--network host`.
 
 ### Data safety

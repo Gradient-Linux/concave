@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/user"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -69,6 +70,7 @@ func renderCompose(name string) ([]byte, error) {
 	logx.Debug("compose substitutions", "suite", name, "workspace_root", workspace.Root(), "network", composeNetwork)
 	rendered := strings.ReplaceAll(string(data), "{{WORKSPACE_ROOT}}", workspace.Root())
 	rendered = strings.ReplaceAll(rendered, "{{COMPOSE_NETWORK}}", composeNetwork)
+	rendered = strings.ReplaceAll(rendered, "{{GRADIENT_USER}}", gradientUser())
 	rendered, err = applyManifestOverrides(name, rendered)
 	if err != nil {
 		return nil, err
@@ -168,4 +170,18 @@ func uniquePaths(paths []string) []string {
 		result = append(result, path)
 	}
 	return result
+}
+
+func gradientUser() string {
+	if value := os.Getenv("SUDO_USER"); value != "" {
+		return value
+	}
+	if value := os.Getenv("USER"); value != "" {
+		return value
+	}
+	current, err := user.Current()
+	if err != nil {
+		return "unknown"
+	}
+	return current.Username
 }

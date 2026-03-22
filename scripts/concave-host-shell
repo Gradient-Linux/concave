@@ -1,0 +1,10 @@
+#!/bin/bash
+set -euo pipefail
+
+if [ "$#" -ne 1 ]; then
+  echo "usage: concave-host-shell <username>" >&2
+  exit 64
+fi
+
+username="$1"
+exec /usr/sbin/runuser -u "${username}" -- /bin/bash

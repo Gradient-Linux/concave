@@ -4,6 +4,10 @@
 services:
   gradient-neural-torch:
     image: pytorch/pytorch:2.6.0-cuda12.4-cudnn9-runtime
+    labels:
+      gradient.managed: "true"
+      gradient.suite: "neural"
+      gradient.user: "{{GRADIENT_USER}}"
     command: ["sleep", "infinity"]
     restart: unless-stopped
     volumes:
@@ -22,6 +26,10 @@ services:
 
   gradient-neural-infer:
     image: nvidia/cuda:12.4.1-runtime-ubuntu22.04
+    labels:
+      gradient.managed: "true"
+      gradient.suite: "neural"
+      gradient.user: "{{GRADIENT_USER}}"
     command: ["sleep", "infinity"]
     restart: unless-stopped
     ports:
@@ -43,6 +51,10 @@ services:
 
   gradient-neural-lab:
     image: quay.io/jupyter/base-notebook:python-3.11.6
+    labels:
+      gradient.managed: "true"
+      gradient.suite: "neural"
+      gradient.user: "{{GRADIENT_USER}}"
     restart: unless-stopped
     ports:
       - "8888:8888"

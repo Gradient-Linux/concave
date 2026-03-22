@@ -20,8 +20,9 @@ type PortConflict struct {
 
 // InstallOptions controls suite installation behavior.
 type InstallOptions struct {
-	GPUAvailable bool
-	Force        bool
+	GPUAvailable   bool
+	Force          bool
+	ForgeSelection *ForgeSelection
 }
 
 var checkConflicts = func(Suite, []string) ([]PortConflict, error) {
@@ -52,7 +53,7 @@ func SetConflictChecker(fn func(Suite, []string) ([]PortConflict, error)) {
 // Install runs the suite installation flow for a named suite.
 func Install(ctx context.Context, suiteName string, opts InstallOptions) error {
 	logx.Debug("suite install start", "suite", suiteName)
-	selectedSuite, _, err := installTarget(suiteName)
+	selectedSuite, _, err := installTarget(suiteName, opts)
 	if err != nil {
 		return fmt.Errorf("step 1 validate suite: %w", err)
 	}
@@ -128,7 +129,7 @@ func Install(ctx context.Context, suiteName string, opts InstallOptions) error {
 	return nil
 }
 
-func installTarget(name string) (Suite, ForgeSelection, error) {
+func installTarget(name string, opts InstallOptions) (Suite, ForgeSelection, error) {
 	base, err := Get(name)
 	if err != nil {
 		return Suite{}, ForgeSelection{}, err
@@ -137,14 +138,18 @@ func installTarget(name string) (Suite, ForgeSelection, error) {
 		return base, ForgeSelection{}, nil
 	}
 
-	selection, err := PickComponents()
-	if err != nil {
-		return Suite{}, ForgeSelection{}, err
+	selection := opts.ForgeSelection
+	if selection == nil {
+		picked, err := PickComponents()
+		if err != nil {
+			return Suite{}, ForgeSelection{}, err
+		}
+		selection = &picked
 	}
 	base.Containers = selection.Containers
 	base.Ports = selection.Ports
 	base.Volumes = selection.Volumes
-	return base, selection, nil
+	return base, *selection, nil
 }
 
 func writeSelectedCompose(selectedSuite Suite) error {

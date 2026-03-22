@@ -7,6 +7,7 @@
 - [x] Compose rendering, rollback metadata, and health checks
 - [x] Crash logging, signal handling, retries, and operation lock
 - [x] Shell completions, Goreleaser packaging, Debian postinstall hook, and APT scripts
+- [x] Phase 3 auth, `concave serve`, Unix role enforcement, and JWT sessions
 - [ ] Real Ubuntu 24.04 smoke test completed on target hardware
 - [ ] `v0.1.0` tag pushed and GitHub Release published
 

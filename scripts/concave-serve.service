@@ -1,0 +1,23 @@
+[Unit]
+Description=Gradient Linux API Server
+After=network.target docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+User=gradient-svc
+Group=gradient-svc
+Environment=CONCAVE_SERVE_ADDR=127.0.0.1:7777
+EnvironmentFile=-/etc/default/concave-serve
+ExecStart=/usr/local/bin/concave serve --addr ${CONCAVE_SERVE_ADDR}
+Restart=on-failure
+RestartSec=5s
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/var/lib/gradient /home
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

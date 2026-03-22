@@ -13,12 +13,11 @@ builds:
     main: .
     binary: concave
     env:
-      - CGO_ENABLED=0
+      - CGO_ENABLED=1
     goos:
       - linux
     goarch:
       - amd64
-      - arm64
     ldflags:
       - -s -w
       - -X main.Version={{.Version}}
@@ -71,10 +70,17 @@ nfpms:
         dst: /usr/share/zsh/vendor-completions/_concave
       - src: scripts/completions/concave.fish
         dst: /usr/share/fish/vendor_completions.d/concave.fish
+      - src: scripts/concave-serve.service
+        dst: /etc/systemd/system/concave-serve.service
+      - src: scripts/concave-host-shell
+        dst: /usr/local/libexec/concave-host-shell
+        file_info:
+          mode: 0755
     scripts:
       postinstall: scripts/postinstall.sh
     dependencies:
       - docker-ce | docker.io
+      - libpam0g
     recommends:
       - nvidia-container-toolkit
 

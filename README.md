@@ -8,9 +8,12 @@ models, notebooks, tracking, orchestration, and observability stay inside contai
 ## What This Repo Contains
 
 - a statically compiled Go CLI (`concave`)
+- an authenticated local control-plane server (`concave serve`)
 - Docker Compose templates for Boosting, Neural, Flow, and Forge
 - workspace lifecycle management for `~/gradient/`
 - suite install, start, stop, update, rollback, and status flows
+- Unix-group-based role resolution for CLI, TUI, and web clients
+- JWT-backed API sessions for `concave serve`
 - GPU detection and NVIDIA driver guidance
 - system and suite documentation
 
@@ -24,6 +27,8 @@ models, notebooks, tracking, orchestration, and observability stay inside contai
 - `internal/suite/` defines suite metadata and lifecycle helpers
 - `internal/config/` persists `state.json` and `versions.json`
 - `internal/gpu/` detects GPU state and drives NVIDIA-specific checks
+- `internal/auth/` owns Unix role resolution, PAM auth, JWT issuance, and permission checks
+- `internal/api/` exposes the authenticated `concave serve` HTTP and WebSocket control plane
 - `templates/` is a flat directory of the canonical Compose YAML templates
 - `docs/` holds system documentation and suite reference material
 
@@ -74,6 +79,22 @@ go build -o concave .
 `scripts/build.sh` builds the static binary and generates shell completions into
 `scripts/completions/`.
 
+Phase 3 adds multi-user and frontend-facing control surfaces:
+
+```bash
+concave whoami
+concave serve --addr 127.0.0.1:7777
+```
+
+`concave serve` is intended to run under the packaged `concave-serve.service`
+systemd unit as `gradient-svc`. Authentication and authorization are derived from
+Unix group membership:
+
+- `gradient-viewer`
+- `gradient-developer`
+- `gradient-operator`
+- `gradient-admin`
+
 ## Suite Reference
 
 - [Boosting](docs/suites/boosting.md): CPU-first experimentation, JupyterLab, MLflow
@@ -83,6 +104,8 @@ go build -o concave .
 
 See [docs/suite-guide.md](docs/suite-guide.md) for the high-level suite map and
 [docs/concave-reference.md](docs/concave-reference.md) for command coverage.
+See [docs/system-admin.md](docs/system-admin.md) for auth groups, `concave serve`,
+and packaged service behavior.
 
 ## Companion Projects
 

@@ -2,10 +2,21 @@ package gpu
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/Gradient-Linux/concave/internal/logx"
 )
+
+// NVIDIADevice is a point-in-time snapshot of one NVIDIA GPU.
+type NVIDIADevice struct {
+	Index          int
+	Name           string
+	Utilization    int
+	MemoryUsedMiB  int
+	MemoryTotalMiB int
+	DriverVersion  string
+}
 
 // ComputeCapability reads the NVIDIA compute capability from nvidia-smi.
 func ComputeCapability() (string, error) {
@@ -58,6 +69,56 @@ func ToolkitConfigured() (bool, error) {
 		return false, fmt.Errorf("nvidia-ctk runtime configure --dry-run: %w", err)
 	}
 	return true, nil
+}
+
+// NVIDIADevices returns live utilization, VRAM, and driver data for all visible NVIDIA GPUs.
+func NVIDIADevices() ([]NVIDIADevice, error) {
+	out, err := runner.Run(
+		"nvidia-smi",
+		"--query-gpu=index,name,utilization.gpu,memory.used,memory.total,driver_version",
+		"--format=csv,noheader,nounits",
+	)
+	if err != nil {
+		return nil, fmt.Errorf("nvidia-smi gpu query: %w", err)
+	}
+
+	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+	devices := make([]NVIDIADevice, 0, len(lines))
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		parts := strings.Split(line, ",")
+		if len(parts) < 6 {
+			return nil, fmt.Errorf("unexpected nvidia-smi gpu query output")
+		}
+		index, err := strconv.Atoi(strings.TrimSpace(parts[0]))
+		if err != nil {
+			return nil, fmt.Errorf("parse gpu index: %w", err)
+		}
+		utilization, err := strconv.Atoi(strings.TrimSpace(parts[2]))
+		if err != nil {
+			return nil, fmt.Errorf("parse gpu utilization: %w", err)
+		}
+		used, err := strconv.Atoi(strings.TrimSpace(parts[3]))
+		if err != nil {
+			return nil, fmt.Errorf("parse gpu memory used: %w", err)
+		}
+		total, err := strconv.Atoi(strings.TrimSpace(parts[4]))
+		if err != nil {
+			return nil, fmt.Errorf("parse gpu memory total: %w", err)
+		}
+		devices = append(devices, NVIDIADevice{
+			Index:          index,
+			Name:           strings.TrimSpace(parts[1]),
+			Utilization:    utilization,
+			MemoryUsedMiB:  used,
+			MemoryTotalMiB: total,
+			DriverVersion:  strings.TrimSpace(parts[5]),
+		})
+	}
+	return devices, nil
 }
 
 // VerifyPassthrough verifies Docker GPU passthrough with a CUDA base image.

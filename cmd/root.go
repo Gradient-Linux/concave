@@ -2,7 +2,9 @@ package cmd
 
 import (
 	"os"
+	"strings"
 
+	"github.com/Gradient-Linux/concave/internal/auth"
 	"github.com/Gradient-Linux/concave/internal/system"
 	"github.com/Gradient-Linux/concave/internal/ui"
 	"github.com/spf13/cobra"
@@ -25,6 +27,22 @@ var rootCmd = &cobra.Command{
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	Version:       Version,
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		if isExemptCommand(cmd) {
+			return nil
+		}
+		if _, err := auth.InitCLIRole(); err != nil {
+			ui.Fail("Auth", err.Error())
+			ui.Info("Fix", "Ask a sysadmin to run: usermod -aG gradient-viewer "+os.Getenv("USER"))
+			return system.NewExitError(system.ExitUserError, "%s", err.Error())
+		}
+		if minRole, ok := requiredRoleForCommand(cmd); ok {
+			if err := auth.RequireCLIRole(minRole); err != nil {
+				return system.NewExitError(system.ExitUserError, "%s", err.Error())
+			}
+		}
+		return nil
+	},
 }
 
 // Execute runs the root command and exits on error.
@@ -85,4 +103,36 @@ func init() {
 			}
 		},
 	})
+}
+
+func isExemptCommand(cmd *cobra.Command) bool {
+	if cmd == nil {
+		return true
+	}
+	path := strings.TrimSpace(strings.TrimPrefix(cmd.CommandPath(), "concave"))
+	switch path {
+	case "", "doctor", "completion", "whoami":
+		return true
+	default:
+		return false
+	}
+}
+
+func requiredRoleForCommand(cmd *cobra.Command) (auth.Role, bool) {
+	switch strings.TrimSpace(strings.TrimPrefix(cmd.CommandPath(), "concave")) {
+	case "status", "list", "logs", "changelog":
+		return auth.RoleViewer, true
+	case "lab", "shell", "exec":
+		return auth.RoleDeveloper, true
+	case "workspace status":
+		return auth.RoleViewer, true
+	case "workspace backup", "workspace clean":
+		return auth.RoleOperator, true
+	case "install", "remove", "start", "stop", "restart", "update", "rollback":
+		return auth.RoleOperator, true
+	case "serve", "driver-wizard", "setup", "self-update":
+		return auth.RoleAdmin, true
+	default:
+		return 0, false
+	}
 }
