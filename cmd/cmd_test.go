@@ -589,7 +589,7 @@ func TestRemoveStopRestartAndShellCommands(t *testing.T) {
 		"boosting": {
 			"gradient-boost-core":  {Current: "python:3.12-slim"},
 			"gradient-boost-lab":   {Current: "quay.io/jupyter/base-notebook:python-3.11.6"},
-			"gradient-boost-track": {Current: "ghcr.io/mlflow/mlflow:2.14"},
+			"gradient-boost-track": {Current: "ghcr.io/mlflow/mlflow:v2.14.1"},
 		},
 	}
 	loadManifest = func() (config.VersionManifest, error) { return manifest, nil }
@@ -653,7 +653,7 @@ func TestHelperFunctionsAndFallbackPaths(t *testing.T) {
 			"forge": {
 				"gradient-boost-core":  {Current: "python:3.12-slim"},
 				"gradient-boost-lab":   {Current: "quay.io/jupyter/base-notebook:python-3.11.6"},
-				"gradient-flow-mlflow": {Current: "ghcr.io/mlflow/mlflow:2.14"},
+				"gradient-flow-mlflow": {Current: "ghcr.io/mlflow/mlflow:v2.14.1"},
 			},
 		}, nil
 	}

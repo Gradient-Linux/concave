@@ -51,7 +51,7 @@ support for the full execution path.
 ### `gradient-neural-infer`
 
 - Role: inference runtime for serving and lightweight HTTP workloads
-- Image: `nvidia/cuda:12.4-runtime-ubuntu24.04`
+- Image: `nvidia/cuda:12.4.1-runtime-ubuntu22.04`
 - Ports: `8000`, `8080`
 - Mounts: data, notebooks, models, outputs
 - Environment and config: requests NVIDIA devices through Compose reservations

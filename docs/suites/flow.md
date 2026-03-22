@@ -35,7 +35,7 @@ serving, object storage, metrics, and dashboards.
 ### `gradient-flow-mlflow`
 
 - Role: experiment tracking backend for the Flow suite
-- Image: `ghcr.io/mlflow/mlflow:2.14`
+- Image: `ghcr.io/mlflow/mlflow:v2.14.1`
 - Ports: `5000`
 - Mounts: `mlruns`, `outputs`
 - Startup path: MLflow UI mode against workspace-backed tracking storage
@@ -100,7 +100,7 @@ serving, object storage, metrics, and dashboards.
 ### `gradient-flow-serve`
 
 - Role: model serving endpoint container
-- Image: `bentoml/bentoml:1.2.0`
+- Image: `bentoml/model-server:latest`
 - Ports: `3100`
 - Mounts: `models`, `outputs`
 - Startup path: long-running serving runtime

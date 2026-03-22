@@ -70,7 +70,7 @@ flows without any driver prerequisites.
 ### `gradient-boost-track`
 
 - Role: MLflow tracking UI and metadata backend
-- Image: `ghcr.io/mlflow/mlflow:2.14`
+- Image: `ghcr.io/mlflow/mlflow:v2.14.1`
 - Ports: `5000`
 - Mounts: `mlruns`, `outputs`
 - Startup path: starts MLflow in UI mode against the workspace-backed store
