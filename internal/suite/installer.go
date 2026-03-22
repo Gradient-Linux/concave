@@ -83,20 +83,23 @@ func Install(ctx context.Context, suiteName string, opts InstallOptions) error {
 		return fmt.Errorf("step 4 check port conflicts: conflicts detected for %s", selectedSuite.Name)
 	}
 
-	spinner := ui.NewSpinner("Pulling images")
-	spinner.Start()
+	totalSteps := len(selectedSuite.Containers) + 3
+	step := 0
+	ui.Progress("Install", step, totalSteps)
 	for _, container := range selectedSuite.Containers {
 		ui.Info("Pulling", container.Image)
 		if err := pullImageWithRollback(ctx, container.Image, nil); err != nil {
-			spinner.Stop("")
 			return fmt.Errorf("step 5 pull images: %w", err)
 		}
+		step++
+		ui.Progress("Install", step, totalSteps)
 	}
-	spinner.Stop("images ready")
 
 	if err := writeSelectedCompose(selectedSuite); err != nil {
 		return fmt.Errorf("step 6 write compose file: %w", err)
 	}
+	step++
+	ui.Progress("Install", step, totalSteps)
 
 	manifest, err := loadVersionManifest()
 	if err != nil {
@@ -106,10 +109,13 @@ func Install(ctx context.Context, suiteName string, opts InstallOptions) error {
 	if err := saveVersionManifest(manifest); err != nil {
 		return fmt.Errorf("step 7 save manifest: %w", err)
 	}
+	step++
+	ui.Progress("Install", step, totalSteps)
 
 	if err := addInstalledSuite(selectedSuite.Name); err != nil {
 		return fmt.Errorf("step 8 update state: %w", err)
 	}
+	ui.Progress("Install", totalSteps, totalSteps)
 
 	ui.Pass("Install", selectedSuite.Name+" installed successfully")
 	return nil

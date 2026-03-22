@@ -38,6 +38,9 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
+	totalSteps := len(s.Containers) + 3
+	step := 0
+	ui.Progress("Update", step, totalSteps)
 
 	for _, container := range s.Containers {
 		current := ""
@@ -50,17 +53,24 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		}
 		manifest = recordUpdate(manifest, s.Name, container.Name, container.Image)
 		ui.Info(container.Name, fmt.Sprintf("%s -> %s", current, container.Image))
+		step++
+		ui.Progress("Update", step, totalSteps)
 	}
 
 	if err := saveManifest(manifest); err != nil {
 		return err
 	}
+	step++
+	ui.Progress("Update", step, totalSteps)
 	if _, err := writeComposeForCurrentState(name); err != nil {
 		return err
 	}
+	step++
+	ui.Progress("Update", step, totalSteps)
 	if err := dockerComposeUp(ctx, dockerComposePath(name), true); err != nil {
 		return err
 	}
+	ui.Progress("Update", totalSteps, totalSteps)
 
 	ui.Pass("Update", name)
 	return nil
