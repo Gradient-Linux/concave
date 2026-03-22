@@ -3,6 +3,8 @@ package gpu
 import (
 	"fmt"
 	"strings"
+
+	"github.com/Gradient-Linux/concave/internal/logx"
 )
 
 // ComputeCapability reads the NVIDIA compute capability from nvidia-smi.
@@ -11,6 +13,7 @@ func ComputeCapability() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("nvidia-smi compute capability: %w", err)
 	}
+	logx.Debug("nvidia-smi raw output", "output", strings.TrimSpace(string(out)))
 	return strings.TrimSpace(string(out)), nil
 }
 

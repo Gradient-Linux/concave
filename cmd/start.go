@@ -25,24 +25,35 @@ func runStart(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	defer cancel()
-
-	for _, name := range names {
-		ui.Info("Starting", name)
-		if err := dockerComposeUp(ctx, dockerComposePath(name), true); err != nil {
-			return err
+	return runLockedOperation("start", 5*time.Minute, nil, func(ctx context.Context) error {
+		totalSteps := len(names) * 2
+		if totalSteps == 0 {
+			totalSteps = 1
 		}
-		s, err := currentSuiteDefinition(name)
-		if err != nil {
-			return err
+		step := 0
+		for _, name := range names {
+			ui.Info("Starting", name)
+			if err := dockerComposeUp(ctx, dockerComposePath(name), true); err != nil {
+				return wrapDockerError(err)
+			}
+			step++
+			ui.Progress("Start", step, totalSteps)
+			s, err := currentSuiteDefinition(name)
+			if err != nil {
+				return err
+			}
+			if err := systemRegisterPorts(s); err != nil {
+				return err
+			}
+			if err := waitForHealthy(ctx, s); err != nil {
+				return err
+			}
+			step++
+			ui.Progress("Start", step, totalSteps)
+			ui.Pass("Started", name)
 		}
-		if err := systemRegisterPorts(s); err != nil {
-			return err
-		}
-		ui.Pass("Started", name)
-	}
-	return nil
+		return nil
+	})
 }
 
 func init() {

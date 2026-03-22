@@ -31,6 +31,11 @@ var (
 	isInstalled     = config.IsInstalled
 	loadManifest    = config.LoadManifest
 	saveManifest    = config.SaveManifest
+	loadSetupState  = config.LoadSetupState
+	saveSetupState  = config.SaveSetupState
+	markStepComplete = config.MarkStepComplete
+	markSetupComplete = config.MarkSetupComplete
+	isStepComplete = config.IsStepComplete
 	recordInstall   = config.RecordInstall
 	recordUpdate    = config.RecordUpdate
 	swapForRollback = config.SwapForRollback
@@ -44,6 +49,7 @@ var (
 	buildForgeCompose       = suite.BuildForgeCompose
 	forgeSelectionFromNames = suite.SelectionFromContainerNames
 	installSuite            = suite.Install
+	waitHealthy             = suite.WaitHealthy
 
 	dockerPullWithRollbackSafety = docker.PullWithRollbackSafety
 	dockerWriteCompose           = docker.WriteCompose
@@ -70,6 +76,8 @@ var (
 	systemRegisterPorts     = system.Register
 	systemDeregisterPorts   = system.Deregister
 	systemOpenURL           = system.OpenURL
+	systemSignalHandler     = system.WithSignalHandler
+	systemLock              = system.Lock
 	uiConfirm               = ui.Confirm
 
 	runDockerOutput = func(ctx context.Context, args ...string) ([]byte, error) {

@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -33,7 +34,20 @@ var selfUpdateCmd = &cobra.Command{
 	Use:   "self-update",
 	Short: "Download and atomically replace the concave binary",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		resp, err := selfUpdateClient.Get(selfUpdateManifestURL)
+		var tempPath string
+		ctx, stop := systemSignalHandler(context.Background(), func() {
+			if tempPath != "" {
+				_ = os.Remove(tempPath)
+			}
+			ui.Warn("Interrupted", "cleaning up temporary update binary")
+		})
+		defer stop()
+
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, selfUpdateManifestURL, nil)
+		if err != nil {
+			return fmt.Errorf("create manifest request: %w", err)
+		}
+		resp, err := selfUpdateClient.Do(req)
 		if err != nil {
 			return fmt.Errorf("download manifest: %w", err)
 		}
@@ -48,7 +62,11 @@ var selfUpdateCmd = &cobra.Command{
 			return fmt.Errorf("decode manifest: %w", err)
 		}
 
-		binResp, err := selfUpdateClient.Get(manifest.URL)
+		binReq, err := http.NewRequestWithContext(ctx, http.MethodGet, manifest.URL, nil)
+		if err != nil {
+			return fmt.Errorf("create binary request: %w", err)
+		}
+		binResp, err := selfUpdateClient.Do(binReq)
 		if err != nil {
 			return fmt.Errorf("download binary: %w", err)
 		}
@@ -66,7 +84,7 @@ var selfUpdateCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("create temp update binary in %s: %w", targetDir, err)
 		}
-		tempPath := file.Name()
+		tempPath = file.Name()
 		defer os.Remove(tempPath)
 
 		hasher := sha256.New()

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/Gradient-Linux/concave/internal/gpu"
@@ -25,12 +26,15 @@ func runInstall(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	defer cancel()
-
-	return installSuite(ctx, args[0], suite.InstallOptions{
-		GPUAvailable: state == gpu.GPUStateNVIDIA,
-		Force:        installForce,
+	return runLockedOperation("install", 5*time.Minute, composeCleanup(args[0]), func(ctx context.Context) error {
+		err := installSuite(ctx, args[0], suite.InstallOptions{
+			GPUAvailable: state == gpu.GPUStateNVIDIA,
+			Force:        installForce,
+		})
+		if err != nil && (strings.HasPrefix(err.Error(), "step 5 pull images") || strings.HasPrefix(err.Error(), "step 6 write compose file")) {
+			return wrapDockerError(err)
+		}
+		return err
 	})
 }
 

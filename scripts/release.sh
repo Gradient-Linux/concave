@@ -1,14 +1,15 @@
 #!/bin/bash
 set -euo pipefail
 
-mkdir -p dist
+bash scripts/build.sh
 
-VERSION=$(git describe --tags --always)
+if ! command -v goreleaser >/dev/null 2>&1; then
+  echo "ERROR: goreleaser is required. Install it from https://goreleaser.com/install/"
+  exit 1
+fi
 
-CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
-  go build -ldflags="-s -w -X main.Version=${VERSION}" \
-  -o dist/concave-linux-amd64 .
+if [ "$#" -eq 0 ]; then
+  exec goreleaser release --snapshot --clean
+fi
 
-CGO_ENABLED=0 GOOS=linux GOARCH=arm64 \
-  go build -ldflags="-s -w -X main.Version=${VERSION}" \
-  -o dist/concave-linux-arm64 .
+exec goreleaser "$@"

@@ -38,7 +38,11 @@ jobs:
             END { exit bad }
           ' package-cover.out
       - run: go test ./tests/benchmarks -run '^$' -bench . -benchtime=1x
-      - run: CGO_ENABLED=0 go build -o concave .
+      - run: bash scripts/build.sh
+      - run: |
+          test -f scripts/completions/concave.bash
+          test -f scripts/completions/concave.zsh
+          test -f scripts/completions/concave.fish
       - run: |
           size=$(stat -c%s concave)
           echo "binary size: ${size} bytes"

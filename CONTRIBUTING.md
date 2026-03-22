@@ -77,6 +77,8 @@ Requirements:
 - Go 1.25.0 or newer locally
 - Docker Engine
 - `golangci-lint` for local lint checks
+- optional: `goreleaser` for local release artifact validation
+- optional: `syft` for local SPDX SBOM generation during release validation
 
 Clone and build:
 
@@ -87,6 +89,7 @@ go build -o concave .
 go test ./...
 go test -race ./...
 go vet ./...
+bash scripts/build.sh
 ```
 
 Optional local lint:
@@ -200,6 +203,7 @@ Examples:
   - `~/gradient/models/`
   - `~/gradient/notebooks/`
 - Invalid generated Compose files must be deleted before returning an error.
+- Mutating commands must remain safe to interrupt and safe to rerun.
 
 ## Testing and Quality Gates
 

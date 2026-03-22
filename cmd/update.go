@@ -36,44 +36,49 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	defer cancel()
-	totalSteps := len(s.Containers) + 3
-	step := 0
-	ui.Progress("Update", step, totalSteps)
+	return runLockedOperation("update", 5*time.Minute, composeCleanup(name), func(ctx context.Context) error {
+		totalSteps := len(s.Containers) + 4
+		step := 0
+		ui.Progress("Update", step, totalSteps)
 
-	for _, container := range s.Containers {
-		current := ""
-		if containers, ok := manifest[s.Name]; ok {
-			current = containers[container.Name].Current
+		for _, container := range s.Containers {
+			current := ""
+			if containers, ok := manifest[s.Name]; ok {
+				current = containers[container.Name].Current
+			}
+			ui.Info("Pulling", container.Image)
+			if err := dockerPullWithRollbackSafety(ctx, container.Image, nil); err != nil {
+				return wrapDockerError(err)
+			}
+			manifest = recordUpdate(manifest, s.Name, container.Name, container.Image)
+			ui.Info(container.Name, fmt.Sprintf("%s -> %s", current, container.Image))
+			step++
+			ui.Progress("Update", step, totalSteps)
 		}
-		ui.Info("Pulling", container.Image)
-		if err := dockerPullWithRollbackSafety(ctx, container.Image, nil); err != nil {
+
+		if err := saveManifest(manifest); err != nil {
 			return err
 		}
-		manifest = recordUpdate(manifest, s.Name, container.Name, container.Image)
-		ui.Info(container.Name, fmt.Sprintf("%s -> %s", current, container.Image))
 		step++
 		ui.Progress("Update", step, totalSteps)
-	}
+		if _, err := writeComposeForCurrentState(name); err != nil {
+			return wrapDockerError(err)
+		}
+		step++
+		ui.Progress("Update", step, totalSteps)
+		if err := dockerComposeUp(ctx, dockerComposePath(name), true); err != nil {
+			return wrapDockerError(err)
+		}
+		step++
+		ui.Progress("Update", step, totalSteps)
+		if err := waitForHealthy(ctx, s); err != nil {
+			return err
+		}
+		ui.Progress("Update", totalSteps, totalSteps)
 
-	if err := saveManifest(manifest); err != nil {
-		return err
-	}
-	step++
-	ui.Progress("Update", step, totalSteps)
-	if _, err := writeComposeForCurrentState(name); err != nil {
-		return err
-	}
-	step++
-	ui.Progress("Update", step, totalSteps)
-	if err := dockerComposeUp(ctx, dockerComposePath(name), true); err != nil {
-		return err
-	}
-	ui.Progress("Update", totalSteps, totalSteps)
-
-	ui.Pass("Update", name)
-	return nil
+		ui.Pass("Update", name)
+		return nil
+	})
 }
 
 func init() {

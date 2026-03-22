@@ -1,7 +1,9 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
+	"time"
 
 	"github.com/Gradient-Linux/concave/internal/gpu"
 	"github.com/Gradient-Linux/concave/internal/ui"
@@ -15,23 +17,26 @@ var driverWizardCmd = &cobra.Command{
 }
 
 func runDriverWizard(cmd *cobra.Command, args []string) error {
-	state, err := gpuDetectState()
-	if err != nil {
-		return err
-	}
+	return runLockedOperation("driver-wizard", 5*time.Minute, nil, func(ctx context.Context) error {
+		_ = ctx
+		state, err := gpuDetectState()
+		if err != nil {
+			return err
+		}
 
-	switch state {
-	case gpu.GPUStateNone:
-		ui.Warn("GPU", "CPU-only host detected — no driver changes required")
-		return nil
-	case gpu.GPUStateAMD:
-		gpuDetectAMDState()
-		return nil
-	case gpu.GPUStateNVIDIA:
-		return runNVIDIAWizard()
-	default:
-		return fmt.Errorf("unknown GPU state")
-	}
+		switch state {
+		case gpu.GPUStateNone:
+			ui.Warn("GPU", "CPU-only host detected — no driver changes required")
+			return nil
+		case gpu.GPUStateAMD:
+			gpuDetectAMDState()
+			return nil
+		case gpu.GPUStateNVIDIA:
+			return runNVIDIAWizard()
+		default:
+			return fmt.Errorf("unknown GPU state")
+		}
+	})
 }
 
 func runNVIDIAWizard() error {

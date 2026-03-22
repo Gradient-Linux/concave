@@ -25,24 +25,32 @@ func runStop(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	defer cancel()
-
-	for _, name := range names {
-		ui.Info("Stopping", name)
-		if err := dockerComposeDown(ctx, dockerComposePath(name)); err != nil {
-			return err
+	return runLockedOperation("stop", 5*time.Minute, nil, func(ctx context.Context) error {
+		totalSteps := len(names) * 2
+		if totalSteps == 0 {
+			totalSteps = 1
 		}
-		s, err := currentSuiteDefinition(name)
-		if err != nil {
-			return err
+		step := 0
+		for _, name := range names {
+			ui.Info("Stopping", name)
+			if err := dockerComposeDown(ctx, dockerComposePath(name)); err != nil {
+				return wrapDockerError(err)
+			}
+			step++
+			ui.Progress("Stop", step, totalSteps)
+			s, err := currentSuiteDefinition(name)
+			if err != nil {
+				return err
+			}
+			if err := systemDeregisterPorts(s); err != nil {
+				return err
+			}
+			step++
+			ui.Progress("Stop", step, totalSteps)
+			ui.Pass("Stopped", name)
 		}
-		if err := systemDeregisterPorts(s); err != nil {
-			return err
-		}
-		ui.Pass("Stopped", name)
-	}
-	return nil
+		return nil
+	})
 }
 
 func init() {

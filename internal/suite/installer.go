@@ -6,6 +6,7 @@ import (
 
 	"github.com/Gradient-Linux/concave/internal/config"
 	"github.com/Gradient-Linux/concave/internal/docker"
+	"github.com/Gradient-Linux/concave/internal/logx"
 	"github.com/Gradient-Linux/concave/internal/ui"
 )
 
@@ -50,6 +51,7 @@ func SetConflictChecker(fn func(Suite, []string) ([]PortConflict, error)) {
 
 // Install runs the suite installation flow for a named suite.
 func Install(ctx context.Context, suiteName string, opts InstallOptions) error {
+	logx.Debug("suite install start", "suite", suiteName)
 	selectedSuite, _, err := installTarget(suiteName)
 	if err != nil {
 		return fmt.Errorf("step 1 validate suite: %w", err)
@@ -60,6 +62,7 @@ func Install(ctx context.Context, suiteName string, opts InstallOptions) error {
 		return fmt.Errorf("step 2 check installed state: %w", err)
 	}
 	if installed && !opts.Force {
+		logx.Debug("suite install skipped", "suite", selectedSuite.Name, "reason", "already installed")
 		ui.Info("Install", selectedSuite.Name+" already installed")
 		return nil
 	}
@@ -87,6 +90,7 @@ func Install(ctx context.Context, suiteName string, opts InstallOptions) error {
 	step := 0
 	ui.Progress("Install", step, totalSteps)
 	for _, container := range selectedSuite.Containers {
+		logx.Debug("suite install pull", "suite", selectedSuite.Name, "container", container.Name, "image", container.Image)
 		ui.Info("Pulling", container.Image)
 		if err := pullImageWithRollback(ctx, container.Image, nil); err != nil {
 			return fmt.Errorf("step 5 pull images: %w", err)
@@ -98,6 +102,7 @@ func Install(ctx context.Context, suiteName string, opts InstallOptions) error {
 	if err := writeSelectedCompose(selectedSuite); err != nil {
 		return fmt.Errorf("step 6 write compose file: %w", err)
 	}
+	logx.Debug("suite install compose written", "suite", selectedSuite.Name)
 	step++
 	ui.Progress("Install", step, totalSteps)
 
@@ -109,6 +114,7 @@ func Install(ctx context.Context, suiteName string, opts InstallOptions) error {
 	if err := saveVersionManifest(manifest); err != nil {
 		return fmt.Errorf("step 7 save manifest: %w", err)
 	}
+	logx.Debug("suite install manifest saved", "suite", selectedSuite.Name)
 	step++
 	ui.Progress("Install", step, totalSteps)
 
@@ -117,6 +123,7 @@ func Install(ctx context.Context, suiteName string, opts InstallOptions) error {
 	}
 	ui.Progress("Install", totalSteps, totalSteps)
 
+	logx.Debug("suite install complete", "suite", selectedSuite.Name)
 	ui.Pass("Install", selectedSuite.Name+" installed successfully")
 	return nil
 }

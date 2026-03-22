@@ -10,6 +10,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/Gradient-Linux/concave/internal/logx"
 )
 
 const defaultTimeout = 5 * time.Minute
@@ -24,12 +26,14 @@ type DefaultRunner struct{}
 
 // RunCommand executes a command and captures combined output.
 func (DefaultRunner) RunCommand(ctx context.Context, name string, args ...string) ([]byte, error) {
+	logx.Debug("docker command", "name", name, "args", strings.Join(args, " "))
 	return exec.CommandContext(ctx, name, args...).CombinedOutput()
 }
 
 var (
 	commandRunner Runner = DefaultRunner{}
 	streamCommand        = func(ctx context.Context, name string, args []string, onLine func(string)) error {
+		logx.Debug("docker stream command", "name", name, "args", strings.Join(args, " "))
 		cmd := exec.CommandContext(ctx, name, args...)
 		stdout, err := cmd.StdoutPipe()
 		if err != nil {
@@ -79,6 +83,7 @@ var (
 		return nil
 	}
 	runInteractiveCommand = func(ctx context.Context, name string, args ...string) error {
+		logx.Debug("docker interactive command", "name", name, "args", strings.Join(args, " "))
 		cmd := exec.CommandContext(ctx, name, args...)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
@@ -115,7 +120,9 @@ func Pull(ctx context.Context, image string, onProgress func(line string)) error
 	ctx, cancel := withDefaultTimeout(ctx)
 	defer cancel()
 
-	if err := streamCommand(ctx, "docker", []string{"pull", image}, onProgress); err != nil {
+	if err := WithRetry(ctx, DefaultRetryConfig(), func() error {
+		return streamCommand(ctx, "docker", []string{"pull", image}, onProgress)
+	}); err != nil {
 		return fmt.Errorf("docker pull %s: %w", image, err)
 	}
 	return nil

@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Gradient-Linux/concave/internal/config"
 	"github.com/Gradient-Linux/concave/internal/gpu"
@@ -46,6 +47,11 @@ func restoreCommandDeps(t *testing.T) {
 	oldIsInstalled := isInstalled
 	oldLoadManifest := loadManifest
 	oldSaveManifest := saveManifest
+	oldLoadSetupState := loadSetupState
+	oldSaveSetupState := saveSetupState
+	oldMarkStepComplete := markStepComplete
+	oldMarkSetupComplete := markSetupComplete
+	oldIsStepComplete := isStepComplete
 	oldRecordInstall := recordInstall
 	oldRecordUpdate := recordUpdate
 	oldSwapForRollback := swapForRollback
@@ -58,6 +64,7 @@ func restoreCommandDeps(t *testing.T) {
 	oldBuildForgeCompose := buildForgeCompose
 	oldForgeSelectionFromNames := forgeSelectionFromNames
 	oldInstallSuite := installSuite
+	oldWaitHealthy := waitHealthy
 	oldDockerPullWithRollbackSafety := dockerPullWithRollbackSafety
 	oldDockerWriteCompose := dockerWriteCompose
 	oldDockerWriteRawCompose := dockerWriteRawCompose
@@ -81,6 +88,8 @@ func restoreCommandDeps(t *testing.T) {
 	oldSystemRegisterPorts := systemRegisterPorts
 	oldSystemDeregisterPorts := systemDeregisterPorts
 	oldSystemOpenURL := systemOpenURL
+	oldSystemSignalHandler := systemSignalHandler
+	oldSystemLock := systemLock
 	oldUIConfirm := uiConfirm
 	oldRunDockerOutput := runDockerOutput
 	oldRunDockerInteractive := runDockerInteractive
@@ -105,6 +114,11 @@ func restoreCommandDeps(t *testing.T) {
 		isInstalled = oldIsInstalled
 		loadManifest = oldLoadManifest
 		saveManifest = oldSaveManifest
+		loadSetupState = oldLoadSetupState
+		saveSetupState = oldSaveSetupState
+		markStepComplete = oldMarkStepComplete
+		markSetupComplete = oldMarkSetupComplete
+		isStepComplete = oldIsStepComplete
 		recordInstall = oldRecordInstall
 		recordUpdate = oldRecordUpdate
 		swapForRollback = oldSwapForRollback
@@ -117,6 +131,7 @@ func restoreCommandDeps(t *testing.T) {
 		buildForgeCompose = oldBuildForgeCompose
 		forgeSelectionFromNames = oldForgeSelectionFromNames
 		installSuite = oldInstallSuite
+		waitHealthy = oldWaitHealthy
 		dockerPullWithRollbackSafety = oldDockerPullWithRollbackSafety
 		dockerWriteCompose = oldDockerWriteCompose
 		dockerWriteRawCompose = oldDockerWriteRawCompose
@@ -140,6 +155,8 @@ func restoreCommandDeps(t *testing.T) {
 		systemRegisterPorts = oldSystemRegisterPorts
 		systemDeregisterPorts = oldSystemDeregisterPorts
 		systemOpenURL = oldSystemOpenURL
+		systemSignalHandler = oldSystemSignalHandler
+		systemLock = oldSystemLock
 		uiConfirm = oldUIConfirm
 		runDockerOutput = oldRunDockerOutput
 		runDockerInteractive = oldRunDockerInteractive
@@ -151,6 +168,16 @@ func restoreCommandDeps(t *testing.T) {
 		rootCmd.SetArgs(nil)
 		ui.ResetOutput()
 	})
+
+	systemSignalHandler = func(parent context.Context, cleanup func()) (context.Context, context.CancelFunc) {
+		return context.WithCancel(parent)
+	}
+	systemLock = func(subcommand string) (func(), error) {
+		return func() {}, nil
+	}
+	waitHealthy = func(ctx context.Context, s suite.Suite, timeout time.Duration, progressFn func([]suite.HealthResult)) error {
+		return nil
+	}
 }
 
 func captureOutput(t *testing.T) *bytes.Buffer {
@@ -296,6 +323,52 @@ func TestRemoveNegativeConfirmationNoOp(t *testing.T) {
 	}
 	if removed {
 		t.Fatal("expected removal to be skipped")
+	}
+}
+
+func TestRemoveMissingComposeStillCleansState(t *testing.T) {
+	restoreCommandDeps(t)
+	buf := captureOutput(t)
+
+	isInstalled = func(name string) (bool, error) { return true, nil }
+	uiConfirm = func(question string) bool { return true }
+	dockerComposePath = func(name string) string { return filepath.Join(t.TempDir(), name+".compose.yml") }
+
+	var removedState string
+	removeSuite = func(name string) error {
+		removedState = name
+		return nil
+	}
+
+	loadManifest = func() (config.VersionManifest, error) {
+		return config.VersionManifest{
+			"boosting": {
+				"gradient-boost-core": {Current: "python:3.12-slim"},
+			},
+		}, nil
+	}
+
+	var saved config.VersionManifest
+	saveManifest = func(manifest config.VersionManifest) error {
+		saved = manifest
+		return nil
+	}
+
+	dockerContainerStatus = func(ctx context.Context, name string) (string, error) { return "running", nil }
+	runDockerOutput = func(ctx context.Context, args ...string) ([]byte, error) { return nil, nil }
+	systemDeregisterPorts = func(s suite.Suite) error { return nil }
+
+	if err := runRemove(removeCmd, []string{"boosting"}); err != nil {
+		t.Fatalf("runRemove() error = %v", err)
+	}
+	if removedState != "boosting" {
+		t.Fatalf("removeSuite() name = %q", removedState)
+	}
+	if _, ok := saved["boosting"]; ok {
+		t.Fatalf("expected boosting manifest entry to be removed: %#v", saved)
+	}
+	if !strings.Contains(buf.String(), "missing — cleaning suite state directly") {
+		t.Fatalf("expected missing compose warning, got %q", buf.String())
 	}
 }
 
@@ -661,12 +734,24 @@ func TestDriverWizardSetupAndSelfUpdate(t *testing.T) {
 	}
 
 	ensureWorkspaceLayout = func() error { return nil }
+	workspaceRoot = func() string { return t.TempDir() }
 	gpuDetectState = func() (gpu.GPUState, error) { return gpu.GPUStateNone, nil }
 	installed := []string{}
-	installCmd.RunE = func(cmd *cobra.Command, args []string) error {
-		installed = append(installed, args[0])
+	isInstalled = func(name string) (bool, error) {
+		for _, item := range installed {
+			if item == name {
+				return true, nil
+			}
+		}
+		return false, nil
+	}
+	installSuite = func(ctx context.Context, name string, opts suite.InstallOptions) error {
+		installed = append(installed, name)
 		return nil
 	}
+	dockerComposePath = func(name string) string { return "/tmp/" + name + ".compose.yml" }
+	dockerComposeUp = func(ctx context.Context, path string, detach bool) error { return nil }
+	systemRegisterPorts = func(s suite.Suite) error { return nil }
 	doctorCalled := false
 	doctorCmd.RunE = func(cmd *cobra.Command, args []string) error {
 		doctorCalled = true

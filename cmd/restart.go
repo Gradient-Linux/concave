@@ -21,29 +21,38 @@ func runRestart(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	defer cancel()
-
-	name := names[0]
-	ui.Info("Restarting", name)
-	if err := dockerComposeDown(ctx, dockerComposePath(name)); err != nil {
-		return err
-	}
-	s, err := currentSuiteDefinition(name)
-	if err != nil {
-		return err
-	}
-	if err := systemDeregisterPorts(s); err != nil {
-		return err
-	}
-	if err := dockerComposeUp(ctx, dockerComposePath(name), true); err != nil {
-		return err
-	}
-	if err := systemRegisterPorts(s); err != nil {
-		return err
-	}
-	ui.Pass("Restarted", name)
-	return nil
+	return runLockedOperation("restart", 5*time.Minute, nil, func(ctx context.Context) error {
+		name := names[0]
+		totalSteps := 4
+		step := 0
+		ui.Info("Restarting", name)
+		if err := dockerComposeDown(ctx, dockerComposePath(name)); err != nil {
+			return wrapDockerError(err)
+		}
+		step++
+		ui.Progress("Restart", step, totalSteps)
+		s, err := currentSuiteDefinition(name)
+		if err != nil {
+			return err
+		}
+		if err := systemDeregisterPorts(s); err != nil {
+			return err
+		}
+		if err := dockerComposeUp(ctx, dockerComposePath(name), true); err != nil {
+			return wrapDockerError(err)
+		}
+		step++
+		ui.Progress("Restart", step, totalSteps)
+		if err := systemRegisterPorts(s); err != nil {
+			return err
+		}
+		if err := waitForHealthy(ctx, s); err != nil {
+			return err
+		}
+		ui.Progress("Restart", totalSteps, totalSteps)
+		ui.Pass("Restarted", name)
+		return nil
+	})
 }
 
 func init() {

@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Gradient-Linux/concave/internal/suite"
 	"github.com/Gradient-Linux/concave/internal/ui"
 	"github.com/spf13/cobra"
 )
@@ -43,58 +42,34 @@ func runRollback(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	defer cancel()
-
-	if _, err := writeComposeForCurrentState(name); err != nil {
-		return err
-	}
-	if err := dockerComposeDown(ctx, dockerComposePath(name)); err != nil {
-		return err
-	}
-	if err := dockerComposeUp(ctx, dockerComposePath(name), true); err != nil {
-		return err
-	}
-
-	s, err := currentSuiteDefinition(name)
-	if err != nil {
-		return err
-	}
-	if err := waitForRunning(ctx, s); err != nil {
-		return err
-	}
-
-	ui.Pass("Rollback", name)
-	return nil
-}
-
-func waitForRunning(parent context.Context, s suite.Suite) error {
-	ctx, cancel := context.WithTimeout(parent, 30*time.Second)
-	defer cancel()
-
-	ticker := time.NewTicker(2 * time.Second)
-	defer ticker.Stop()
-
-	containerList := containerNames(s)
-	for {
-		allRunning := true
-		for _, container := range containerList {
-			status, err := dockerContainerStatus(ctx, container)
-			if err != nil || status != "running" {
-				allRunning = false
-				break
-			}
+	return runLockedOperation("rollback", 5*time.Minute, composeCleanup(name), func(ctx context.Context) error {
+		totalSteps := 4
+		ui.Progress("Rollback", 0, totalSteps)
+		if _, err := writeComposeForCurrentState(name); err != nil {
+			return wrapDockerError(err)
 		}
-		if allRunning {
-			return nil
+		ui.Progress("Rollback", 1, totalSteps)
+		if err := dockerComposeDown(ctx, dockerComposePath(name)); err != nil {
+			return wrapDockerError(err)
+		}
+		ui.Progress("Rollback", 2, totalSteps)
+		if err := dockerComposeUp(ctx, dockerComposePath(name), true); err != nil {
+			return wrapDockerError(err)
 		}
 
-		select {
-		case <-ctx.Done():
-			return fmt.Errorf("timeout waiting for %s to become healthy", strings.Join(containerList, ", "))
-		case <-ticker.C:
+		s, err := currentSuiteDefinition(name)
+		if err != nil {
+			return err
 		}
-	}
+		ui.Progress("Rollback", 3, totalSteps)
+		if err := waitForHealthy(ctx, s); err != nil {
+			return err
+		}
+
+		ui.Progress("Rollback", totalSteps, totalSteps)
+		ui.Pass("Rollback", name)
+		return nil
+	})
 }
 
 func init() {

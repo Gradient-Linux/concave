@@ -1,17 +1,28 @@
 package main
 
-import "github.com/Gradient-Linux/concave/cmd"
+import (
+	"os"
 
-// Version is injected at build time.
-var Version = "dev"
+	"github.com/Gradient-Linux/concave/cmd"
+	"github.com/Gradient-Linux/concave/internal/system"
+)
+
+var (
+	Version   = "dev"
+	Commit    = "none"
+	BuildDate = "unknown"
+)
 
 var executeCommand = cmd.Execute
 
 func run(version string) {
 	cmd.Version = version
+	cmd.Commit = Commit
+	cmd.BuildDate = BuildDate
 	executeCommand()
 }
 
 func main() {
+	defer system.InstallCrashHandler(Version, os.Args)
 	run(Version)
 }

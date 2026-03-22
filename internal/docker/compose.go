@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/Gradient-Linux/concave/internal/config"
+	"github.com/Gradient-Linux/concave/internal/logx"
 	"github.com/Gradient-Linux/concave/internal/workspace"
 )
 
@@ -23,6 +24,7 @@ func ComposePath(name string) string {
 
 // WriteCompose renders a suite compose template into the workspace.
 func WriteCompose(name string) (string, error) {
+	logx.Debug("compose render start", "suite", name)
 	data, err := renderCompose(name)
 	if err != nil {
 		return "", err
@@ -38,14 +40,17 @@ func WriteRawCompose(name string, data []byte) (string, error) {
 
 	path := ComposePath(name)
 	tmp := path + ".tmp"
+	logx.Debug("compose write", "suite", name, "path", path, "tmp", tmp)
 	if err := os.WriteFile(tmp, data, 0o644); err != nil {
 		return "", fmt.Errorf("write %s: %w", tmp, err)
 	}
 
 	if err := validateCompose(tmp); err != nil {
+		logx.Debug("compose validation failed", "suite", name, "path", tmp, "error", err)
 		_ = os.Remove(tmp)
 		return "", err
 	}
+	logx.Debug("compose validation passed", "suite", name, "path", tmp)
 
 	if err := os.Rename(tmp, path); err != nil {
 		_ = os.Remove(tmp)
@@ -61,6 +66,7 @@ func renderCompose(name string) ([]byte, error) {
 		return nil, err
 	}
 
+	logx.Debug("compose substitutions", "suite", name, "workspace_root", workspace.Root(), "network", composeNetwork)
 	rendered := strings.ReplaceAll(string(data), "{{WORKSPACE_ROOT}}", workspace.Root())
 	rendered = strings.ReplaceAll(rendered, "{{COMPOSE_NETWORK}}", composeNetwork)
 	rendered, err = applyManifestOverrides(name, rendered)
@@ -90,6 +96,7 @@ func readTemplate(name string) ([]byte, error) {
 	for _, candidate := range uniquePaths(candidates) {
 		data, err := readTemplateFile(candidate)
 		if err == nil {
+			logx.Debug("compose template selected", "suite", name, "path", candidate)
 			return data, nil
 		}
 		if !os.IsNotExist(err) {

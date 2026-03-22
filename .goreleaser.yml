@@ -1,21 +1,109 @@
+version: 2
+
 project_name: concave
+
+before:
+  hooks:
+    - go mod tidy
+    - go test ./...
+    - bash scripts/build.sh
 
 builds:
   - id: concave
     main: .
     binary: concave
+    env:
+      - CGO_ENABLED=0
     goos:
       - linux
     goarch:
       - amd64
       - arm64
-    env:
-      - CGO_ENABLED=0
     ldflags:
-      - -s -w -X main.Version={{.Version}}
+      - -s -w
+      - -X main.Version={{.Version}}
+      - -X main.Commit={{.Commit}}
+      - -X main.BuildDate={{.Date}}
 
 archives:
-  - formats: [tar.gz]
+  - id: concave
+    name_template: "concave_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    formats: [tar.gz]
+    files:
+      - LICENSE
+      - README.md
+      - CHANGELOG.md
+      - scripts/completions/concave.bash
+      - scripts/completions/concave.zsh
+      - scripts/completions/concave.fish
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+signs:
+  - artifacts: checksum
+    args:
+      - --batch
+      - --yes
+      - --pinentry-mode=loopback
+      - --local-user={{ .Env.GPG_FINGERPRINT }}
+      - --output=${signature}
+      - --detach-sign
+      - ${artifact}
+
+nfpms:
+  - id: concave-deb
+    package_name: concave
+    vendor: Gradient Linux
+    homepage: https://github.com/Gradient-Linux/concave
+    maintainer: Gradient Linux Team <hello@gradientlinux.io>
+    description: |
+      Control-plane CLI for Gradient Linux.
+      Manages GPU drivers, AI suite lifecycle, workspace, and rollback.
+    license: MIT
+    formats: [deb]
+    bindir: /usr/local/bin
+    contents:
+      - src: scripts/completions/concave.bash
+        dst: /etc/bash_completion.d/concave
+      - src: scripts/completions/concave.zsh
+        dst: /usr/share/zsh/vendor-completions/_concave
+      - src: scripts/completions/concave.fish
+        dst: /usr/share/fish/vendor_completions.d/concave.fish
+    scripts:
+      postinstall: scripts/postinstall.sh
+    dependencies:
+      - docker-ce | docker.io
+    recommends:
+      - nvidia-container-toolkit
+
+release:
+  github:
+    owner: Gradient-Linux
+    name: concave
+  draft: false
+  prerelease: auto
+  name_template: "concave {{ .Version }}"
+  footer: |
+    ## Install on Ubuntu 24.04
+
+    ```bash
+    curl -fsSL https://packages.gradientlinux.io/install.sh | sudo bash
+    concave setup
+    ```
+
+    ## Verify
+
+    ```bash
+    gpg --verify checksums.txt.sig checksums.txt
+    sha256sum -c checksums.txt
+    ```
+
+sboms:
+  - artifacts: binary
+    documents:
+      - "{{ .Binary }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}.spdx.json"
 
 changelog:
   use: git

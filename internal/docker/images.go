@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"strings"
+
+	"github.com/Gradient-Linux/concave/internal/logx"
 )
 
 // PullWithProgress preserves the current image and then pulls the new one.
@@ -13,6 +15,7 @@ func PullWithProgress(ctx context.Context, image string, cb func(string)) error 
 
 // PullWithRollbackSafety preserves the current image and then pulls the new one.
 func PullWithRollbackSafety(ctx context.Context, image string, onProgress func(string)) error {
+	logx.Debug("image pull with rollback safety", "image", image)
 	if err := TagAsPrevious(image); err != nil {
 		return err
 	}
@@ -48,6 +51,7 @@ func TagAsPrevious(image string) error {
 	defer cancel()
 
 	previous := previousImageTag(image)
+	logx.Debug("image tag previous", "image", image, "previous", previous)
 	if _, err := commandRunner.RunCommand(ctx, "docker", "tag", image, previous); err != nil {
 		return fmt.Errorf("docker tag %s %s: %w", image, previous, err)
 	}
@@ -57,6 +61,7 @@ func TagAsPrevious(image string) error {
 // RevertToPrevious retags <repo>:gradient-previous back to the requested image tag.
 func RevertToPrevious(image string) error {
 	previous := previousImageTag(image)
+	logx.Debug("image revert to previous", "image", image, "previous", previous)
 	exists, err := ImageExists(previous)
 	if err != nil {
 		return err

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/Gradient-Linux/concave/internal/logx"
 	"github.com/Gradient-Linux/concave/internal/workspace"
 )
 
@@ -29,6 +30,7 @@ func LoadManifest() (VersionManifest, error) {
 	}
 
 	path := workspace.ConfigPath("versions.json")
+	logx.Debug("manifest load", "path", path)
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -49,12 +51,14 @@ func LoadManifest() (VersionManifest, error) {
 
 // SaveManifest writes ~/gradient/config/versions.json atomically.
 func SaveManifest(manifest VersionManifest) error {
+	logx.Debug("manifest save", "path", workspace.ConfigPath("versions.json"))
 	return writeJSONAtomically(workspace.ConfigPath("versions.json"), manifest)
 }
 
 // RecordUpdate moves current to previous and stores the requested image as current.
 func RecordUpdate(manifest VersionManifest, suiteName, containerName, newImage string) VersionManifest {
 	manifest = ensureManifest(manifest)
+	logx.Debug("manifest record update", "suite", suiteName, "container", containerName, "image", newImage)
 	current := ImageVersion{}
 	if containers, ok := manifest[suiteName]; ok {
 		current = containers[containerName]
@@ -73,6 +77,7 @@ func RecordUpdate(manifest VersionManifest, suiteName, containerName, newImage s
 func RecordInstall(manifest VersionManifest, s installRecord) VersionManifest {
 	manifest = ensureManifest(manifest)
 	name := s.RecordName()
+	logx.Debug("manifest record install", "suite", name)
 	if _, ok := manifest[name]; !ok {
 		manifest[name] = map[string]ImageVersion{}
 	}
@@ -91,6 +96,7 @@ func RecordInstall(manifest VersionManifest, s installRecord) VersionManifest {
 // SwapForRollback swaps current and previous image tags for every container in a suite.
 func SwapForRollback(manifest VersionManifest, suiteName string) (VersionManifest, error) {
 	manifest = ensureManifest(manifest)
+	logx.Debug("manifest swap rollback", "suite", suiteName)
 	containers, ok := manifest[suiteName]
 	if !ok {
 		return manifest, fmt.Errorf("nothing to roll back for suite %s", suiteName)

@@ -22,11 +22,18 @@ GPU inspection, and rollback metadata.
    `{{WORKSPACE_ROOT}}` and `{{COMPOSE_NETWORK}}`, and writes the rendered Compose file
    into `~/gradient/compose/`.
 5. Docker image pulls and `docker compose` lifecycle actions are executed through the
-   `internal/docker/` package.
+   `internal/docker/` package, with retry/backoff reserved for pull-like operations.
 6. Installed suite state and image version history are recorded in
    `~/gradient/config/state.json` and `~/gradient/config/versions.json`.
-7. Rollback and update operations manipulate Compose output and config metadata only;
+7. Mutating commands run under a single advisory lock at
+   `~/gradient/config/.concave.lock` and use signal-aware contexts so Ctrl+C does not
+   leave partial generated files behind.
+8. Panics are captured locally to `~/gradient/logs/concave.log` with a `/tmp` fallback;
+   no network reporting is performed by the binary.
+9. Rollback and update operations manipulate Compose output and config metadata only;
    they never modify user datasets, notebooks, or model files.
+10. Release artifacts are built by Goreleaser and include shell completions, Debian
+    packaging metadata, and SPDX SBOMs.
 
 ## Documentation Model
 

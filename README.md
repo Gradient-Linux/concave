@@ -55,11 +55,24 @@ document under `docs/suites/*.md`.
 
 ## Quick Start
 
+Ubuntu 24.04 package install:
+
+```bash
+curl -fsSL https://packages.gradientlinux.io/install.sh | sudo bash
+concave setup
+```
+
+Manual local build:
+
 ```bash
 go build -o concave .
 ./concave doctor
 ./concave workspace init
 ```
+
+`concave --verbose` enables structured debug logging on stderr without changing stdout.
+`scripts/build.sh` builds the static binary and generates shell completions into
+`scripts/completions/`.
 
 ## Suite Reference
 
@@ -84,4 +97,4 @@ internal workflows, but the public contribution contract is defined here in the 
 
 ## License
 
-License terms are pending project publication.
+This project is released under the [MIT License](LICENSE).
