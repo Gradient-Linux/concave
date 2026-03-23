@@ -77,6 +77,16 @@ These routes handle login, logout, refresh, and identity lookup.
 Mutating operations return a job identifier. Clients poll the job endpoint to
 stream progress text and final state.
 
+`/api/v1/metrics/stream` emits live SSE snapshots for the operational dashboards.
+The payload includes:
+
+- workspace capacity and usage
+- suite install/state summaries
+- GPU device data when available
+- overall CPU usage
+- per-core CPU usage
+- RAM and swap usage
+
 ### Read-only operational endpoints
 
 - `GET /api/v1/doctor`

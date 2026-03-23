@@ -32,6 +32,8 @@ func (a *App) handleMetricsStream(w http.ResponseWriter, r *http.Request) {
 			"workspace": workspaceSnapshotOrNil(),
 			"suites":    suiteSummaries(),
 			"gpu":       gpuMetrics(),
+			"cpu":       cpuMetrics(),
+			"memory":    memoryMetrics(),
 			"timestamp": time.Now().UTC(),
 		}
 		data, _ := json.Marshal(payload)
