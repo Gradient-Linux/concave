@@ -1,44 +1,122 @@
 # Suite Guide
 
-`concave` manages four suite modes:
+`concave` manages four suite targets:
 
-## Boosting
+- `boosting`
+- `neural`
+- `flow`
+- `forge`
 
-CPU-first classical machine learning environment with:
+Each suite is defined in `internal/suite/registry.go`, rendered to `~/gradient/compose/<suite>.compose.yml`, and tracked under `~/gradient/config/`.
 
-- a long-running Python worker container
-- JupyterLab on port `8888`
-- MLflow on port `5000`
+## Install a suite
 
-Detailed service, volume, environment, and lifecycle notes live in
-[docs/suites/boosting.md](suites/boosting.md).
+Install writes the suite state, records image versions, and renders the Compose file. It does not start the containers.
 
-## Neural
+```bash
+concave install boosting
+```
 
-GPU-oriented training and inference environment with:
+If the suite is already present, rerun with:
 
-- a PyTorch runtime
-- an inference container exposing `8000` and `8080`
-- JupyterLab on port `8888`
+```bash
+concave install boosting --force
+```
 
-Detailed GPU and container notes live in [docs/suites/neural.md](suites/neural.md).
+## Start and stop
 
-## Flow
+Start one suite:
 
-Multi-service MLOps stack with:
+```bash
+concave start boosting
+```
 
-- MLflow
-- Airflow
-- Prometheus
-- Grafana
-- MinIO
-- BentoML
+Start every installed suite:
 
-Detailed service reference lives in [docs/suites/flow.md](suites/flow.md).
+```bash
+concave start
+```
 
-## Forge
+Stop one suite:
 
-User-composed suite mode that selects components from the other suites, resolves port
-conflicts, and generates a custom Compose file.
+```bash
+concave stop boosting
+```
 
-Detailed selection and generation rules live in [docs/suites/forge.md](suites/forge.md).
+Stop every installed suite:
+
+```bash
+concave stop
+```
+
+Restart one suite:
+
+```bash
+concave restart boosting
+```
+
+## Observe the current state
+
+Use these commands while the suite is running:
+
+```bash
+concave status
+concave list
+concave logs boosting --service gradient-boost-lab
+concave lab --suite boosting
+```
+
+`concave lab` opens JupyterLab for `boosting` or `neural`. If `--suite` is omitted, `concave` picks the first installed Jupyter-capable suite.
+
+## Update and rollback
+
+Update pulls the target images from the suite registry, records the previous image tags, rewrites the Compose file, and restarts the suite:
+
+```bash
+concave update boosting
+```
+
+Rollback swaps the current and previous image tags recorded in `~/gradient/config/versions.json`, rewrites the Compose file, and restarts the suite:
+
+```bash
+concave rollback boosting
+```
+
+The current build uses `versions.json` for rollback state. A content-addressed `gradient.lock` file is planned for a later release and is not shipped in this build.
+
+Rollback and remove preserve user data:
+
+- `~/gradient/data/`
+- `~/gradient/notebooks/`
+- `~/gradient/models/`
+
+## Remove a suite
+
+Removal tears down the Compose stack, deletes the suite state, and keeps user data in place:
+
+```bash
+concave remove boosting
+```
+
+The command asks for confirmation before it proceeds.
+
+## Example workflow: from zero to JupyterLab
+
+```bash
+concave workspace init
+concave install boosting
+concave start boosting
+concave lab --suite boosting
+concave status
+```
+
+That flow creates the workspace, installs the CPU-first suite, starts it, opens JupyterLab, and then prints the suite status table.
+
+## Per-suite details
+
+Use the suite-specific documents for images, ports, and mounts:
+
+- [suites/boosting.md](suites/boosting.md)
+- [suites/neural.md](suites/neural.md)
+- [suites/flow.md](suites/flow.md)
+- [suites/forge.md](suites/forge.md)

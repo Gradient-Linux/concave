@@ -1,289 +1,92 @@
-# Contributing to Gradient Linux / concave
+# Contributing to concave
 
-`concave` is the control-plane CLI for Gradient Linux. This document is the public
-source of truth for contributor-facing expectations in this repository: architecture
-rules, documentation layout, code conventions, testing gates, and pull request flow.
+Contributions are welcome for CLI behavior, API handlers, suite lifecycle, workspace tooling, GPU support, tests, and documentation. Keep changes focused on the control plane. Client-side presentation work belongs in `concave-tui` and `concave-web`.
 
-Maintainers may use their own internal tooling, automation, or agentic workflows while
-building and reviewing the project. Those internal workflows are not part of the public
-contribution contract. If you contribute with your own local tooling or agents, the
-result still needs to follow this document.
+## Before you start
 
-## Scope
+Read these documents before changing behavior:
 
-- Active repository: `github.com/Gradient-Linux/concave`
-- Go module: `github.com/Gradient-Linux/concave`
-- Target platform: Ubuntu 24.04 LTS
-- Primary deliverable: a static `concave` Go binary
+- [README.md](README.md)
+- [docs/architecture.md](docs/architecture.md)
+- [docs/concave-reference.md](docs/concave-reference.md)
+- [docs/suite-guide.md](docs/suite-guide.md)
 
-Gradient Linux keeps the host thin. Docker Engine and the `concave` binary live on the
-host. AI frameworks, notebooks, model services, tracking, and orchestration all run in
-containers. Do not add host Python installation paths to this project.
+## Development setup
 
-## Repository Layout
-
-```text
-concave/
-  CONTRIBUTING.md
-  README.md
-  CHANGELOG.md
-  main.go
-  go.mod
-  cmd/
-  internal/
-  templates/
-  scripts/
-  tests/
-    integration/
-    benchmarks/
-  docs/
-    architecture.md
-    concave-reference.md
-    gpu-setup.md
-    system-admin.md
-    suite-guide.md
-    suites/
-      boosting.md
-      neural.md
-      flow.md
-      forge.md
-```
-
-## Documentation Layout
-
-There are exactly two documentation locations in this repo:
-
-- `docs/`
-- inline godoc in Go source
-
-Rules:
-
-- System-wide behavior belongs in `docs/`.
-- Suite-level prose belongs in `docs/suites/*.md`, one file per suite.
-- Service-level details belong inside the relevant suite doc, not in a separate tree.
-- There is no `services/` directory.
-- There is no `docs/suites/<suite>/` directory tree.
-- There are no README files inside `templates/`.
-- `templates/` is a flat directory containing only the four Compose YAML files.
-
-If your change alters user-facing behavior, command flow, suite topology, container
-ports, environment variables, or workspace mounts, update the matching document in the
-same pull request.
-
-## Local Setup
-
-Requirements:
-
-- Ubuntu 24.04 LTS preferred
-- Go 1.25.0 or newer locally
-- Docker Engine
-- `golangci-lint` for local lint checks
-- optional: `goreleaser` for local release artifact validation
-- optional: `syft` for local SPDX SBOM generation during release validation
-
-Clone and build:
+Use Ubuntu 24.04 with Go 1.25 or newer and Docker Engine installed.
 
 ```bash
-git clone git@github.com:Gradient-Linux/concave.git
+git clone <repo-url>
 cd concave
-go build -o concave .
+CGO_ENABLED=0 go build -o concave .
 go test ./...
 go test -race ./...
-go vet ./...
-bash scripts/build.sh
+./concave --help
 ```
 
-Optional local lint:
+If you want to exercise live suite flows, start from a machine with Docker available and a writable `~/gradient/` workspace.
 
-```bash
-golangci-lint run ./...
-```
+## Making changes
 
-## Branching and Pull Requests
+### Branching
 
-Human contributors branch from `main` using one of these prefixes:
+Use one of these branch prefixes:
 
-- `feat/`
-- `fix/`
-- `docs/`
-- `refactor/`
-- `test/`
+- `feat/<slug>`
+- `fix/<slug>`
+- `docs/<slug>`
 
-Examples:
+### Commit messages
 
-- `feat/boosting-log-follow`
-- `fix/compose-rollback-cleanup`
-- `docs/update-suite-guide`
+Format commits as `<type>(<scope>): <summary>`.
 
-Workflow:
-
-1. Branch from `main`.
-2. Make the smallest coherent change possible.
-3. Run the required checks locally.
-4. Update docs in the same branch when behavior changes.
-5. Open a pull request targeting `dev`, never `main`.
-
-Maintainers handle review, additional automation, and the final `dev` to `main` merge.
-
-## Commit Format
-
-Use Conventional Commits:
-
-```text
-<type>(<scope>): <short description>
-```
-
-Common types:
+Use these types:
 
 - `feat`
 - `fix`
-- `docs`
 - `refactor`
 - `test`
-- `chore`
-- `perf`
-
-Common scopes:
-
-- `core`
-- `suite`
-- `gpu`
-- `infra`
-- `templates`
 - `docs`
+- `chore`
+
+Keep the summary under 72 characters.
 
 Examples:
 
-- `feat(suite): add boosting install rollback cleanup`
-- `fix(infra): delete invalid compose files on validation failure`
-- `docs(docs): align suite guide with current install flow`
+- `feat(gpu): add secure boot enrollment guidance`
+- `fix(workspace): keep outputs cleanup scoped to workspace root`
+- `docs(reference): document resolver status commands`
 
-## Code Rules
+### Tests
 
-### General
+- Add or update unit tests for any new function or behavior change.
+- Run `go test ./...` before opening a pull request.
+- Run `go test -race ./...` when you touch shared state, jobs, or long-lived goroutines.
+- Integration tests belong in `tests/integration/` and should stay opt-in.
 
-- Use Go 1.25-compatible code. CI runs on Go 1.26.1.
-- Direct dependencies are intentionally minimal and require maintainer approval.
-- Approved direct dependencies today are:
-  - `github.com/spf13/cobra v1.8.0`
-  - `github.com/msteinert/pam`
-  - `github.com/golang-jwt/jwt/v5`
-  - `github.com/gorilla/websocket`
-  - `github.com/creack/pty`
-- New dependencies require explicit maintainer approval.
-- Keep functions small and easy to test.
-- Wrap errors with context.
-- Leave the system clean on failure.
+### Pull requests
 
-### Output and UX
+- Keep pull requests focused on one logical change.
+- Explain what changed, why it changed, and how you verified it.
+- Update user-facing docs in the same pull request when command behavior changes.
 
-- All command output in `cmd/` goes through `internal/ui/`.
+## Code conventions
+
+- All terminal output in `cmd/` must go through `internal/ui/printer.go`.
 - Do not use `fmt.Println` or `log.Printf` in `cmd/`.
-- User-facing errors must explain recovery when practical.
+- Docker-facing functions should accept `context.Context` first.
+- Keep direct dependencies tightly controlled. Any new dependency needs prior discussion in an issue.
+- `internal/suite/registry.go` is the single source of truth for suite names, images, ports, and mounts.
+- `cmd/` is the only layer that may call `os.Exit`.
+- Return errors up the call stack and wrap them with context, for example `fmt.Errorf("docker pull %s: %w", image, err)`.
 
-### Paths, images, and ports
+## What we don't accept
 
-- Do not hardcode image tags outside `internal/suite/registry.go`.
-- Do not hardcode workspace paths outside `internal/workspace/init.go`.
-- Do not hardcode port assignments outside suite definitions and the shared port logic.
-- `~/gradient/` is the fixed workspace root.
+- Dependencies added without prior discussion in an issue.
+- Code that writes outside `~/gradient/` without explicit user confirmation.
+- Hardcoded image tags outside `internal/suite/registry.go`.
+- Shell string interpolation with user-controlled input.
 
-### External commands
+## License
 
-- Use `exec.Command` or `exec.CommandContext` with separate arguments.
-- Never build shell commands through string interpolation.
-- Code that shells out must stay testable through an injectable command seam.
-- Never call real Docker or GPU binaries in unit tests.
-
-### Privilege boundaries
-
-- Direct system privilege escalation is tightly scoped.
-- CLI privilege helpers live in `internal/system/privileged.go`.
-- Server-side host controls are mediated by the packaged `gradient-svc` systemd service and its locked sudoers rule.
-- Do not write to `/etc`, `/usr`, or `/var` outside approved packaging, service, or GPU/setup flows.
-- Do not use `--privileged` or `--network host`.
-
-### Data safety
-
-- `remove` and `rollback` must never touch:
-  - `~/gradient/data/`
-  - `~/gradient/models/`
-  - `~/gradient/notebooks/`
-- Invalid generated Compose files must be deleted before returning an error.
-- Mutating commands must remain safe to interrupt and safe to rerun.
-
-## Testing and Quality Gates
-
-Run these locally before opening a PR:
-
-```bash
-go test ./...
-go test -race ./...
-go vet ./...
-CGO_ENABLED=0 go build -o concave .
-```
-
-Coverage gate:
-
-- overall coverage must be at least 80%
-- no package may fall below 60%
-
-Integration tests:
-
-- live under `tests/integration/`
-- must skip unless `CONCAVE_INTEGRATION=1` is set
-- are for real environment validation, not default CI execution
-
-Example:
-
-```bash
-CONCAVE_INTEGRATION=1 go test ./tests/integration -v
-```
-
-GPU-related changes must include manual validation notes in the PR description.
-
-## Documentation Expectations
-
-Update docs when you change:
-
-- command behavior
-- suite topology
-- ports
-- environment variables
-- workspace mounts
-- GPU setup flow
-- rollback/update behavior
-
-Required doc targets:
-
-- system behavior: `docs/*.md`
-- suite behavior and service internals: `docs/suites/<suite>.md`
-- exported Go symbols: godoc comments in source
-
-## What Gets Rejected
-
-These changes will be rejected:
-
-- PRs opened directly to `main`
-- new dependencies without approval
-- `fmt.Println` or `log.Printf` in `cmd/`
-- hardcoded image tags outside `internal/suite/registry.go`
-- hardcoded workspace paths outside `internal/workspace/init.go`
-- docs added outside `docs/` or inline godoc
-- a `services/` directory or docs in `templates/`
-- shell string interpolation in `exec.Command`
-- `sudo` outside approved GPU/setup files
-- changes that modify user data during remove or rollback
-- undocumented behavior changes
-
-## Internal Workflows
-
-This repository may also be developed with private internal scaffolding that is not
-checked into version control. That internal workflow is not the contributor contract.
-
-For public contributions, `CONTRIBUTING.md` is the repo policy.
-
-## Security Reports
-
-Do not open public issues for security vulnerabilities. Report them privately to the
-maintainers through the project security contact.
+By contributing, you agree that your contributions are licensed under the MIT License.

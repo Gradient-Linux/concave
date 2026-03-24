@@ -1,42 +1,116 @@
 # GPU Setup
 
-`concave` supports three hardware states:
+This guide covers the current `concave` GPU workflow for a new machine.
 
+## What `concave gpu setup` detects
+
+`concave gpu setup` checks one of three hardware states:
+
+- CPU-only host
 - NVIDIA GPU
 - AMD GPU
-- CPU-only host
 
-CPU-only hosts are valid. They should not fail `concave check`, and `concave
-gpu setup` should exit cleanly with guidance that no driver changes are required.
+The current build handles those states like this:
 
-## NVIDIA
+- CPU-only: exits cleanly and reports that no driver changes are required
+- NVIDIA: checks Secure Boot, recommends a driver branch, verifies the container toolkit, and validates Docker GPU passthrough
+- AMD: reports that ROCm support is planned for v0.3 and stops there
 
-The NVIDIA workflow is:
+## Recommended first check
 
-1. detect `nvidia-smi`
-2. query compute capability with `nvidia-smi --query-gpu=compute_cap --format=csv,noheader`
-3. map capability to a driver branch
-4. verify `nvidia-ctk runtime configure --runtime=docker --dry-run`
-5. verify Docker passthrough with `docker run --rm --gpus all nvidia/cuda:12.4-base-ubuntu24.04 nvidia-smi`
+Inspect the machine before you change anything:
 
-Driver branch mapping in `concave`:
+```bash
+concave gpu info
+concave gpu check
+```
+
+`concave gpu info` reports the detected GPU, current driver details, compute capability, and recommended NVIDIA driver branch when available. `concave gpu check` runs the GPU-specific health checks without entering the setup flow.
+
+## Run the setup flow
+
+Start the interactive setup path with:
+
+```bash
+concave gpu setup
+```
+
+On an NVIDIA machine, the current flow does this:
+
+1. Detects the GPU state.
+2. Checks whether Secure Boot is enabled.
+3. If Secure Boot is enabled, offers two paths only:
+   - continue and enroll a MOK key on the next reboot
+   - exit and disable Secure Boot in firmware before rerunning setup
+4. Maps compute capability to a recommended driver branch.
+5. Verifies `nvidia-container-toolkit`.
+6. Runs a Docker passthrough check with `nvidia-smi` inside a test container.
+
+Current branch mapping:
 
 - `7.x` -> `535`
-- `8.0` and `8.6` -> `560`
-- `8.9` and `9.0` -> `570`
+- `8.0`, `8.6` -> `560`
+- `8.9`, `9.0` -> `570`
 
-## AMD
+## Secure Boot and MOK enrollment
 
-AMD detection is present for operator visibility. Full ROCm support is deferred and
-should warn rather than fail the CLI. `concave gpu setup` should stop after the AMD
-warning rather than attempting NVIDIA-specific checks.
+If Secure Boot is enabled, `concave` does not try to disable it for you. The setup flow tells you to continue with MOK enrollment or stop and change firmware settings yourself.
 
-## Secure Boot
+You can check the platform state directly with:
 
-If Secure Boot is enabled, the driver wizard should never disable it automatically. The
-user gets two paths only:
+```bash
+mokutil --sb-state
+```
 
-- continue and enroll a MOK key on the next reboot
-- exit, disable Secure Boot in firmware, and rerun `concave gpu setup`
+## About `--dry-run`
 
-No other automatic Secure Boot mutation is allowed.
+The current build does not expose `concave gpu setup --dry-run`. If you want a non-mutating preview, use:
+
+```bash
+concave gpu info
+concave gpu check
+nvidia-ctk runtime configure --runtime=docker --dry-run
+```
+
+## Verify the result
+
+After setup, confirm the machine and container runtime state:
+
+```bash
+concave gpu check
+concave gpu info
+concave check
+docker run --rm --gpus all nvidia/cuda:12.4-base-ubuntu24.04 nvidia-smi
+```
+
+`concave gpu check` should report the detected GPU and a configured toolkit on NVIDIA hosts.
+
+## CPU-only and AMD hosts
+
+CPU-only machines are valid. `concave gpu setup` reports that no driver changes are required and returns without error.
+
+AMD detection is present for visibility. The current release line does not configure ROCm. If the machine reports AMD hardware, stop after the warning and keep the host in CPU-only operation until the AMD path lands.
+
+## If something goes wrong
+
+Start with these commands:
+
+```bash
+concave gpu info
+concave gpu check
+concave check
+```
+
+If Docker GPU passthrough still fails, check the toolkit and runtime manually:
+
+```bash
+nvidia-ctk runtime configure --runtime=docker --dry-run
+sudo systemctl restart docker
+docker run --rm --gpus all nvidia/cuda:12.4-base-ubuntu24.04 nvidia-smi
+```
+
+If Secure Boot blocked the driver path, confirm the MOK enrollment step on reboot or disable Secure Boot in firmware and rerun:
+
+```bash
+concave gpu setup
+```

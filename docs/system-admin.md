@@ -1,60 +1,139 @@
 # System Administration
 
-`concave` Phase 3 adds a local authenticated control plane alongside the CLI.
+This guide covers local roles, services, workspace paths, and the current machine-level command surface.
 
 ## Roles
 
-Access is derived from Unix group membership. There is no separate app user database.
+`concave` derives access from Unix group membership:
 
-- `gradient-viewer`: read-only status, logs, metrics, check, workspace views
-- `gradient-developer`: viewer access plus lab, shell, and exec actions
-- `gradient-operator`: developer access plus install, remove, start, stop, update, rollback, backup, and prune
-- `gradient-admin`: operator access plus `concave serve`, restart-docker, reboot, shutdown, gpu setup, and upgrade
+| Group | Role | Typical access |
+|---|---|---|
+| `gradient-viewer` | Viewer | status, logs, check, workspace status, environment status, fleet status |
+| `gradient-developer` | Developer | Viewer access plus lab, shell, exec |
+| `gradient-operator` | Operator | Developer access plus install, remove, start, stop, update, rollback, backup, prune |
+| `gradient-admin` | Admin | Operator access plus serve, GPU setup, setup, upgrade, resolver and mesh restarts |
 
-If a user belongs to multiple `gradient-*` groups, the highest role wins at runtime.
-That is treated as a host misconfiguration and should be corrected by an admin.
+Use:
 
-## CLI Auth
+```bash
+concave whoami
+```
 
-The CLI resolves the current Unix user role directly from their `gradient-*` group
-membership on each invocation.
+to confirm the current user, role, and allowed command set.
 
-Diagnostic commands remain ungated:
+## Workspace paths
 
-- `concave`
-- `concave --help`
-- `concave --version`
+The default workspace root is:
+
+```text
+~/gradient/
+```
+
+Important subdirectories:
+
+- `data/`
+- `notebooks/`
+- `models/`
+- `outputs/`
+- `mlruns/`
+- `dags/`
+- `compose/`
+- `config/`
+- `backups/`
+- `logs/`
+
+Important config files:
+
+- `~/gradient/config/state.json`
+- `~/gradient/config/versions.json`
+- `~/gradient/config/setup.json`
+
+## Local API
+
+`concave serve` starts the authenticated local API server. The default bind address is:
+
+```text
+127.0.0.1:7777
+```
+
+Start it with:
+
+```bash
+concave serve
+```
+
+The TUI and web clients authenticate against this server. CLI role checks do not use the API session cookie path.
+
+## Current service commands
+
+The current command names are:
+
 - `concave check`
-- `concave whoami`
+- `concave gpu setup`
+- `concave gpu check`
+- `concave gpu info`
+- `concave workspace prune`
+- `concave upgrade`
 
-Use `concave whoami` to confirm the current user, groups, role, and allowed command set.
+Environment, fleet, node, team, resolver, and mesh commands are also present:
 
-## concave serve
+- `concave env status`
+- `concave env diff`
+- `concave node status`
+- `concave fleet status`
+- `concave team list`
+- `concave resolver status`
+- `concave mesh status`
 
-`concave serve` runs the authenticated local API server, by default on `127.0.0.1:7777`.
+Deprecated aliases still work and print warnings:
 
-It provides:
+- `concave doctor`
+- `concave driver-wizard`
+- `concave self-update`
+- `concave workspace clean`
 
-- `/api/v1/auth/*` login, logout, refresh, and identity endpoints
-- authenticated suite, workspace, check, users, and system endpoints
-- WebSocket endpoints for container and host terminals
+## Systemd services
 
-JWT signing material is stored in the auth config under the configured workspace root.
+The current stack includes these service names:
 
-## Packaged Service
-
-The Debian package installs:
-
-- the `gradient-svc` system user
-- the four `gradient-*` role groups
 - `concave-serve.service`
-- `/etc/default/concave-serve`
-- a locked-down sudoers rule for `gradient-svc`
+- `gradient-resolver.service`
+- `gradient-mesh.service`
+- `gradient-lab.service`
 
-The packaged service is intended to run as `gradient-svc`, not as a login shell user.
+`concave-serve.service` backs the local API. The other services are companion components and may only be installed on systems that enable those layers.
+
+## Resolver, mesh, and lab
+
+Resolver and mesh are local daemons that report state back into `concave`:
+
+- Resolver socket: `/run/gradient/resolver.sock`
+- Mesh socket: `/run/gradient/mesh.sock`
+
+Gradient Lab is the notebook-facing layer built on top of JupyterHub and can be deployed separately from the core CLI.
+
+## Administrative actions
+
+Viewer-safe machine inspection:
+
+```bash
+concave check
+concave status
+concave env status
+concave fleet status
+```
+
+Operator and admin actions:
+
+```bash
+concave install boosting
+concave workspace backup
+concave gpu setup
+concave upgrade
+```
 
 ## Notes
 
-- TUI and web clients authenticate against `concave serve`
-- CLI role enforcement does not use JWTs
-- host-level control actions are Admin-only
+- `concave` keeps workspace state local to the machine.
+- TUI and web clients should read machine state from the local API instead of re-deriving it.
+- `gradient-resolver.service`, `gradient-mesh.service`, and `gradient-lab.service` extend the stack, but `concave` remains the host control plane.

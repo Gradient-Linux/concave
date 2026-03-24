@@ -1,185 +1,95 @@
-# Gradient Linux — concave
+# concave
 
-`concave` is the infrastructure control plane for Gradient Linux. It is responsible
-for host checks, suite lifecycle, workspace management, GPU integration, and the
-authenticated local API server used by the terminal and browser frontends.
+Control-plane CLI for Gradient Linux machines and AI suite lifecycle.
 
-The project is intentionally infrastructure-first:
+## What it does
 
-- headless-safe CLI behavior
-- Docker- and workspace-centric lifecycle control
-- packaged systemd deployment for the local control plane
-- Unix-group-backed authorization for machine operations
-- a stable API for `concave-web` and `concave-tui`
+`concave` is the entrypoint for Gradient Linux operators and developers. It creates and maintains the fixed Gradient workspace, installs and manages Docker-based suites, checks machine health, handles GPU setup, and serves the local authenticated API consumed by `concave-tui` and `concave-web`. The binary is built as a static Go executable and is intended to be the only host-level tool most users need.
 
-## Responsibilities
+## Requirements
 
-This repository owns:
+- Ubuntu 24.04 LTS
+- Docker Engine 26+
+- Go 1.25+ for source builds
+- NVIDIA GPU optional; CPU-only machines are supported
 
-- the `concave` CLI
-- the `concave serve` local control-plane server
-- suite installation and lifecycle logic for Boosting, Neural, Flow, and Forge
-- `~/gradient/` or service-root workspace layout management
-- Docker Compose template rendering and validation
-- GPU detection and driver guidance
-- Unix-group role resolution, PAM login, JWT issuance, and permission checks
-- packaged system integration: systemd unit, sudoers helper, shell completions, and release artifacts
+## Install
 
-This repository does not own:
-
-- the Bubble Tea terminal UI
-- the browser UI
-- marketing or site content
-
-Those live in `concave-tui` and `concave-web`.
-
-## Repository layout
-
-- `cmd/`: Cobra command surface, including `serve` and `whoami`
-- `internal/api/`: authenticated HTTP and WebSocket control plane
-- `internal/auth/`: Unix group roles, PAM auth, JWT sessions, permission checks
-- `internal/config/`: workspace state, version manifests, setup-state persistence
-- `internal/docker/`: Compose rendering, Docker process wrappers, retries, image helpers
-- `internal/gpu/`: GPU detection, NVIDIA/AMD helpers
-- `internal/suite/`: suite registry, Forge composition, installers, health checks
-- `internal/system/`: locks, exit codes, logging, crash logs, privileged helpers, host checks
-- `internal/ui/`: CLI output, prompts, and progress display
-- `internal/workspace/`: fixed workspace layout, status, backup, and cleanup
-- `templates/`: canonical Compose YAML templates
-- `scripts/`: build, release, service, apt, and postinstall helpers
-- `docs/`: operator, contributor, suite, and API documentation
-
-## Runtime model
-
-The normal deployment model is:
-
-1. Ubuntu host
-2. Docker Engine
-3. `concave` installed as a system binary
-4. `concave-serve.service` running as `gradient-svc`
-5. frontends talking to `concave serve`
-
-The control plane exposes machine state without forcing the host binary itself to
-grow a UI dependency tree.
-
-## Role model
-
-Access is derived from Unix groups:
-
-- `gradient-viewer`
-- `gradient-developer`
-- `gradient-operator`
-- `gradient-admin`
-
-The CLI resolves the current user's role directly from the host. Browser and TUI
-clients authenticate through `concave serve`, which uses PAM for password checking
-and JWTs for session continuity.
-
-Useful commands:
-
-```bash
-concave whoami
-concave serve --addr 127.0.0.1:7777
-```
-
-## Workspace layout
-
-User-facing installs default to `~/gradient/`. Service deployments use the
-configured service root, typically `/var/lib/gradient`.
-
-```text
-gradient/
-  data/
-  notebooks/
-  models/
-  outputs/
-  mlruns/
-  dags/
-  compose/
-  config/
-  backups/
-  logs/
-```
-
-## Quick start
-
-Package install on an Ubuntu host:
+The fastest install path uses the Gradient Linux package repository:
 
 ```bash
 curl -fsSL https://packages.gradientlinux.io/install.sh | sudo bash
-concave check
-concave setup
-concave whoami
 ```
 
-Manual local development:
+Release binaries are also published through GitHub Releases. For local development, build from source:
+
+```bash
+CGO_ENABLED=0 go build -o concave .
+sudo install -m 0755 concave /usr/local/bin/concave
+```
+
+## Usage
+
+These are the first commands most users run:
+
+```bash
+concave setup
+concave install boosting
+concave start
+concave status
+concave check
+concave env status
+concave fleet status
+```
+
+## Configuration
+
+`concave` uses a fixed workspace rooted at `~/gradient/`. Runtime state lives in `~/gradient/config/`, including:
+
+- `state.json` for installed suites
+- `versions.json` for current and previous image tags
+- `setup.json` for setup wizard progress
+
+The local API binds to `127.0.0.1:7777` by default and can be moved with `concave serve --addr`.
+
+## Architecture
+
+`concave` is the infrastructure layer of Gradient Linux. It owns Docker lifecycle, GPU setup, workspace layout, and the local control-plane API. Companion services such as `concave-resolver`, `gradient-mesh`, and `gradient-lab` stay outside that boundary and report state back into `concave`. See [docs/architecture.md](docs/architecture.md) for the full stack view.
+
+## Development
+
+### Prerequisites
+
+Install Go 1.25 or newer and Docker Engine. Some tests and manual flows expect Docker to be running locally.
+
+### Build
+
+```bash
+CGO_ENABLED=0 go build -o concave .
+```
+
+### Test
 
 ```bash
 go test ./...
 go test -race ./...
-go build -o concave .
-./concave check
-./concave workspace init
 ```
 
-Verbose mode:
+### Repo layout
 
-```bash
-concave --verbose status
+```text
+concave/
+  cmd/          CLI commands
+  internal/     workspace, Docker, suite, GPU, auth, API, and system packages
+  templates/    rendered Compose template sources
+  scripts/      build, release, packaging, and service helpers
+  docs/         user, admin, and contributor documentation
 ```
 
-This keeps normal command output on stdout and writes structured diagnostics to stderr.
+## Roadmap
 
-## Core commands
-
-- `concave check`
-- `concave gpu setup|check|info`
-- `concave workspace init|status|backup|prune`
-- `concave install|remove|start|stop|restart|update|rollback <suite>`
-- `concave logs <suite>`
-- `concave env status|diff|export|apply|rollback|baseline`
-- `concave node status|set`
-- `concave fleet status|peers`
-- `concave team create|list|status|add-user|remove-user|delete`
-- `concave resolver status|logs|restart`
-- `concave mesh status|logs|restart`
-- `concave lab`
-- `concave whoami`
-- `concave serve`
-
-See [docs/concave-reference.md](docs/concave-reference.md) for the full command
-surface.
-
-## Suite map
-
-- [Boosting](docs/suites/boosting.md): notebooks, experiments, MLflow
-- [Neural](docs/suites/neural.md): GPU-oriented training, inference, lab workflows
-- [Flow](docs/suites/flow.md): orchestration, dashboards, storage, serving
-- [Forge](docs/suites/forge.md): user-selected composition across suite components
-
-## Documentation
-
-Start with [docs/README.md](docs/README.md).
-
-Important docs:
-
-- [docs/architecture.md](docs/architecture.md)
-- [docs/api.md](docs/api.md)
-- [docs/system-admin.md](docs/system-admin.md)
-- [docs/concave-reference.md](docs/concave-reference.md)
-- [docs/suite-guide.md](docs/suite-guide.md)
-- [docs/gpu-setup.md](docs/gpu-setup.md)
-
-## Companion repos
-
-- `concave-web`: browser control plane and proxy
-- `concave-tui`: terminal UI client
-
-## Contributing
-
-Contributor-facing rules live in [CONTRIBUTING.md](CONTRIBUTING.md). Public docs,
-README updates, and behavior changes should land together.
+The current line covers the v0.1 control-plane foundation. v0.2 adds environment intelligence through `concave-resolver`, v0.3 adds fleet discovery through `gradient-mesh`, v0.4 expands compute allocation, and v0.5 adds the dedicated `gradient-lab` collaboration layer.
 
 ## License
 
-This project is released under the [MIT License](LICENSE).
+Released under the MIT License.

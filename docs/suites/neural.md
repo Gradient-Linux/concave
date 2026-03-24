@@ -1,82 +1,59 @@
-# Neural Suite
+# Neural
 
-## Purpose
-
-Neural provides GPU-oriented training, inference, and notebook workflows for deep
-learning workloads. Unlike Boosting, Neural depends on NVIDIA-capable Docker runtime
-support for the full execution path.
+Neural is the GPU-oriented suite for training, inference, and notebook workflows. It is aimed at users who want a PyTorch runtime, a model-serving container, and a JupyterLab entrypoint on the same machine.
 
 ## Containers
 
-- `gradient-neural-torch`
-- `gradient-neural-infer`
-- `gradient-neural-lab`
+| Name | Image | Role |
+|---|---|---|
+| `gradient-neural-torch` | `pytorch/pytorch:2.6.0-cuda12.4-cudnn9-runtime` | Training |
+| `gradient-neural-infer` | `nvidia/cuda:12.4.1-runtime-ubuntu22.04` | Inference |
+| `gradient-neural-lab` | `quay.io/jupyter/base-notebook:python-3.11.6` | JupyterLab |
 
-## Host Ports
+## Ports
 
-- `8000` → inference API
-- `8080` → auxiliary HTTP endpoint
-- `8888` → JupyterLab
+| Port | Service |
+|---|---|
+| `8888` | JupyterLab |
+| `8000` | vLLM API |
+| `8080` | llama.cpp |
 
-## Workspace Mounts
+## Volume mounts
 
-- `~/gradient/data` → `/data`
-- `~/gradient/notebooks` → `/notebooks`
-- `~/gradient/models` → `/models`
-- `~/gradient/outputs` → `/outputs`
+| Host path | Container path |
+|---|---|
+| `~/gradient/data` | `/data` |
+| `~/gradient/notebooks` | `/notebooks` |
+| `~/gradient/models` | `/models` |
+| `~/gradient/outputs` | `/outputs` |
 
-## GPU Requirement
+## GPU requirements
 
-- Neural is marked `GPURequired=true` in the suite registry.
-- CPU-only hosts may still render config, but install and runtime flows should warn that
-  the suite requires NVIDIA support.
-- AMD detection is informational only in v0.1.
+Neural is the only built-in suite marked as GPU-required. It is designed for NVIDIA runtime support. CPU-only machines can still install the suite, but `concave` warns that NVIDIA support is recommended and the inference and training containers will not be useful without it.
 
-## Service Reference
+## Install and start
 
-### `gradient-neural-torch`
+```bash
+concave install neural
+concave start neural
+```
 
-- Role: primary PyTorch runtime for model training and interactive experimentation
-- Image: `pytorch/pytorch:2.6.0-cuda12.4-cudnn9-runtime`
-- Ports: none
-- Mounts: data, notebooks, models, outputs
-- Environment and config: container requests all NVIDIA GPUs through Compose device
-  reservations
-- Startup path: long-running helper container with `sleep infinity`
-- Dependencies: NVIDIA driver, NVIDIA Container Toolkit, working Docker GPU passthrough
-- Health and logs: should remain running and see GPUs through the container runtime
-- Troubleshooting: if startup fails, rerun `concave check` and `concave gpu setup`
-- Update and rollback behavior: rollback restores the previously recorded training image
+## Open the primary UI
 
-### `gradient-neural-infer`
+Open JupyterLab with:
 
-- Role: inference runtime for serving and lightweight HTTP workloads
-- Image: `nvidia/cuda:12.4.1-runtime-ubuntu22.04`
-- Ports: `8000`, `8080`
-- Mounts: data, notebooks, models, outputs
-- Environment and config: requests NVIDIA devices through Compose reservations
-- Startup path: durable runtime container launched by Compose
-- Dependencies: same GPU runtime requirements as `gradient-neural-torch`
-- Health and logs: should bind `8000` and `8080` after successful container startup
-- Troubleshooting: verify host ports are free and Docker can launch a GPU-enabled
-  container
-- Update and rollback behavior: image tag history is managed in `versions.json`
+```bash
+concave lab --suite neural
+```
 
-### `gradient-neural-lab`
+Direct local URLs after startup:
 
-- Role: JupyterLab environment for GPU-assisted notebook workflows
-- Image: `quay.io/jupyter/base-notebook:python-3.11.6`
-- Ports: `8888`
-- Mounts: data, notebooks, models, outputs
-- Startup path: started by the suite Compose file and opened through `concave lab`
-- Dependencies: healthy notebook container, free port `8888`, host browser opener
-- Health and logs: startup logs should expose a tokenized Jupyter URL
-- Troubleshooting: if `lab` cannot open, inspect logs and verify the service is running
-- Update and rollback behavior: rollback changes image version only, not notebook data
+- JupyterLab: `http://localhost:8888`
+- Inference API: `http://localhost:8000`
+- Auxiliary HTTP endpoint: `http://localhost:8080`
 
-## Failure Modes
+## Notes
 
-- no NVIDIA runtime available
-- Docker GPU passthrough check fails
-- port `8000`, `8080`, or `8888` already in use
-- rendered Compose file invalid
+- Run `concave gpu check` before installing Neural on a fresh host.
+- The suite uses NVIDIA-oriented images and Compose device reservations.
+- AMD hardware is detected, but ROCm setup is not part of the current release line.
