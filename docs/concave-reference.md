@@ -19,11 +19,14 @@
 
 ## Core Commands
 
-- `concave doctor`
+- `concave check`
+- `concave gpu setup`
+- `concave gpu check`
+- `concave gpu info`
 - `concave workspace init`
 - `concave workspace status`
 - `concave workspace backup`
-- `concave workspace clean --outputs`
+- `concave workspace prune --outputs`
 
 ## Suite Commands
 
@@ -45,14 +48,45 @@
 ## Setup Commands
 
 - `concave setup`
-- `concave driver-wizard`
-- `concave self-update`
+- `concave upgrade`
 - `concave completion [bash|zsh|fish]` (hidden; used by build and packaging tooling)
+
+## Environment Commands
+
+- `concave env status [--group <name>]`
+- `concave env diff [--group <name>]`
+- `concave env export --group <name> [--layers python]`
+- `concave env apply --group <name> [--backend cuda|rocm|cpu]`
+- `concave env rollback --package <pkg> --group <name>`
+- `concave env baseline set --group <name>`
+- `concave env baseline show --group <name>`
+
+## Fleet Commands
+
+- `concave node status`
+- `concave node set --visibility [public|private|hidden]`
+- `concave fleet status`
+- `concave fleet peers`
+- `concave resolver status`
+- `concave resolver logs [--follow]`
+- `concave resolver restart`
+- `concave mesh status`
+- `concave mesh logs [--follow]`
+- `concave mesh restart`
+
+## Team Commands
+
+- `concave team create --name <name> --preset <preset>`
+- `concave team list`
+- `concave team status [name]`
+- `concave team add-user --group <name> --user <username>`
+- `concave team remove-user --group <name> --user <username>`
+- `concave team delete --name <name>`
 
 ## Examples
 
 ```bash
-concave doctor
+concave check
 concave install boosting
 concave start boosting
 concave logs boosting --service gradient-boost-lab --follow

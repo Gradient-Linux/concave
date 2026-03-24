@@ -10,13 +10,21 @@ import (
 )
 
 var doctorCmd = &cobra.Command{
-	Use:   "doctor",
-	Short: "Run concave system health checks",
-	RunE:  runDoctor,
+	Use:        "doctor",
+	Short:      "Deprecated: use 'concave check'",
+	Deprecated: "use 'concave check' instead",
+	Hidden:     true,
+	RunE:       runCheck,
 }
 
-func runDoctor(cmd *cobra.Command, args []string) error {
-	ui.Header("Gradient Linux — concave doctor")
+var checkCmd = &cobra.Command{
+	Use:   "check",
+	Short: "Run concave system health checks",
+	RunE:  runCheck,
+}
+
+func runCheck(cmd *cobra.Command, args []string) error {
+	ui.Header("Gradient Linux — concave check")
 
 	if ok, err := systemDockerRunning(); err != nil {
 		ui.Fail("Docker", err.Error())
@@ -49,8 +57,20 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	}
 
 	// GPU_SECTION_START — GPU Agent adds checks here in Phase 4
-	runGPUDoctorCheck()
+	runGPUCheckSummary()
 	// GPU_SECTION_END
+
+	// RESOLVER_SECTION_START — Phase 11 fills this in
+	runResolverCheckSummary()
+	// RESOLVER_SECTION_END
+
+	// MESH_SECTION_START — Phase 12 fills this in
+	runMeshCheckSummary()
+	// MESH_SECTION_END
+
+	// COMPUTE_ENGINE_SECTION_START — Phase 13 fills this in
+	runComputeCheckSummary()
+	// COMPUTE_ENGINE_SECTION_END
 
 	if _, err := os.Stat(workspaceRoot()); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("workspace stat %s: %w", workspaceRoot(), err)
@@ -59,7 +79,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func runGPUDoctorCheck() {
+func runGPUCheckSummary() {
 	state, err := gpuDetectState()
 	if err != nil {
 		ui.Fail("GPU", err.Error())
@@ -76,6 +96,11 @@ func runGPUDoctorCheck() {
 	}
 }
 
+func runGPUDoctorCheck() {
+	runGPUCheckSummary()
+}
+
 func init() {
+	rootCmd.AddCommand(checkCmd)
 	rootCmd.AddCommand(doctorCmd)
 }

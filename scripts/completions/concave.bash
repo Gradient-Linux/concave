@@ -382,9 +382,9 @@ _concave_changelog()
     noun_aliases=()
 }
 
-_concave_doctor()
+_concave_check()
 {
-    last_command="concave_doctor"
+    last_command="concave_check"
 
     command_aliases=()
 
@@ -404,13 +404,237 @@ _concave_doctor()
     noun_aliases=()
 }
 
-_concave_driver-wizard()
+_concave_env_apply()
 {
-    last_command="concave_driver-wizard"
+    last_command="concave_env_apply"
 
     command_aliases=()
 
     commands=()
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--backend=")
+    two_word_flags+=("--backend")
+    local_nonpersistent_flags+=("--backend")
+    local_nonpersistent_flags+=("--backend=")
+    flags+=("--group=")
+    two_word_flags+=("--group")
+    local_nonpersistent_flags+=("--group")
+    local_nonpersistent_flags+=("--group=")
+    flags+=("--verbose")
+    flags+=("-v")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
+_concave_env_baseline_set()
+{
+    last_command="concave_env_baseline_set"
+
+    command_aliases=()
+
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--group=")
+    two_word_flags+=("--group")
+    local_nonpersistent_flags+=("--group")
+    local_nonpersistent_flags+=("--group=")
+    flags+=("--verbose")
+    flags+=("-v")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
+_concave_env_baseline_show()
+{
+    last_command="concave_env_baseline_show"
+
+    command_aliases=()
+
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--group=")
+    two_word_flags+=("--group")
+    local_nonpersistent_flags+=("--group")
+    local_nonpersistent_flags+=("--group=")
+    flags+=("--verbose")
+    flags+=("-v")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
+_concave_env_baseline()
+{
+    last_command="concave_env_baseline"
+
+    command_aliases=()
+
+    commands=()
+    commands+=("set")
+    commands+=("show")
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--verbose")
+    flags+=("-v")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
+_concave_env_diff()
+{
+    last_command="concave_env_diff"
+
+    command_aliases=()
+
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--group=")
+    two_word_flags+=("--group")
+    local_nonpersistent_flags+=("--group")
+    local_nonpersistent_flags+=("--group=")
+    flags+=("--verbose")
+    flags+=("-v")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
+_concave_env_export()
+{
+    last_command="concave_env_export"
+
+    command_aliases=()
+
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--group=")
+    two_word_flags+=("--group")
+    local_nonpersistent_flags+=("--group")
+    local_nonpersistent_flags+=("--group=")
+    flags+=("--layers=")
+    two_word_flags+=("--layers")
+    local_nonpersistent_flags+=("--layers")
+    local_nonpersistent_flags+=("--layers=")
+    flags+=("--verbose")
+    flags+=("-v")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
+_concave_env_rollback()
+{
+    last_command="concave_env_rollback"
+
+    command_aliases=()
+
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--group=")
+    two_word_flags+=("--group")
+    local_nonpersistent_flags+=("--group")
+    local_nonpersistent_flags+=("--group=")
+    flags+=("--package=")
+    two_word_flags+=("--package")
+    local_nonpersistent_flags+=("--package")
+    local_nonpersistent_flags+=("--package=")
+    flags+=("--verbose")
+    flags+=("-v")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
+_concave_env_status()
+{
+    last_command="concave_env_status"
+
+    command_aliases=()
+
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--group=")
+    two_word_flags+=("--group")
+    local_nonpersistent_flags+=("--group")
+    local_nonpersistent_flags+=("--group=")
+    flags+=("--verbose")
+    flags+=("-v")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
+_concave_env()
+{
+    last_command="concave_env"
+
+    command_aliases=()
+
+    commands=()
+    commands+=("apply")
+    commands+=("baseline")
+    commands+=("diff")
+    commands+=("export")
+    commands+=("rollback")
+    commands+=("status")
 
     flags=()
     two_word_flags=()
@@ -433,6 +657,165 @@ _concave_exec()
     command_aliases=()
 
     commands=()
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--verbose")
+    flags+=("-v")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
+_concave_fleet_peers()
+{
+    last_command="concave_fleet_peers"
+
+    command_aliases=()
+
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--verbose")
+    flags+=("-v")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
+_concave_fleet_status()
+{
+    last_command="concave_fleet_status"
+
+    command_aliases=()
+
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--verbose")
+    flags+=("-v")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
+_concave_fleet()
+{
+    last_command="concave_fleet"
+
+    command_aliases=()
+
+    commands=()
+    commands+=("peers")
+    commands+=("status")
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--verbose")
+    flags+=("-v")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
+_concave_gpu_check()
+{
+    last_command="concave_gpu_check"
+
+    command_aliases=()
+
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--verbose")
+    flags+=("-v")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
+_concave_gpu_info()
+{
+    last_command="concave_gpu_info"
+
+    command_aliases=()
+
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--verbose")
+    flags+=("-v")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
+_concave_gpu_setup()
+{
+    last_command="concave_gpu_setup"
+
+    command_aliases=()
+
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--verbose")
+    flags+=("-v")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
+_concave_gpu()
+{
+    last_command="concave_gpu"
+
+    command_aliases=()
+
+    commands=()
+    commands+=("check")
+    commands+=("info")
+    commands+=("setup")
 
     flags=()
     two_word_flags=()
@@ -575,6 +958,171 @@ _concave_logs()
     noun_aliases=()
 }
 
+_concave_mesh_logs()
+{
+    last_command="concave_mesh_logs"
+
+    command_aliases=()
+
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--follow")
+    local_nonpersistent_flags+=("--follow")
+    flags+=("--verbose")
+    flags+=("-v")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
+_concave_mesh_restart()
+{
+    last_command="concave_mesh_restart"
+
+    command_aliases=()
+
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--verbose")
+    flags+=("-v")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
+_concave_mesh_status()
+{
+    last_command="concave_mesh_status"
+
+    command_aliases=()
+
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--verbose")
+    flags+=("-v")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
+_concave_mesh()
+{
+    last_command="concave_mesh"
+
+    command_aliases=()
+
+    commands=()
+    commands+=("logs")
+    commands+=("restart")
+    commands+=("status")
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--verbose")
+    flags+=("-v")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
+_concave_node_set()
+{
+    last_command="concave_node_set"
+
+    command_aliases=()
+
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--visibility=")
+    two_word_flags+=("--visibility")
+    local_nonpersistent_flags+=("--visibility")
+    local_nonpersistent_flags+=("--visibility=")
+    flags+=("--verbose")
+    flags+=("-v")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
+_concave_node_status()
+{
+    last_command="concave_node_status"
+
+    command_aliases=()
+
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--verbose")
+    flags+=("-v")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
+_concave_node()
+{
+    last_command="concave_node"
+
+    command_aliases=()
+
+    commands=()
+    commands+=("set")
+    commands+=("status")
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--verbose")
+    flags+=("-v")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
 _concave_remove()
 {
     last_command="concave_remove"
@@ -582,6 +1130,99 @@ _concave_remove()
     command_aliases=()
 
     commands=()
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--verbose")
+    flags+=("-v")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
+_concave_resolver_logs()
+{
+    last_command="concave_resolver_logs"
+
+    command_aliases=()
+
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--follow")
+    local_nonpersistent_flags+=("--follow")
+    flags+=("--verbose")
+    flags+=("-v")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
+_concave_resolver_restart()
+{
+    last_command="concave_resolver_restart"
+
+    command_aliases=()
+
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--verbose")
+    flags+=("-v")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
+_concave_resolver_status()
+{
+    last_command="concave_resolver_status"
+
+    command_aliases=()
+
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--verbose")
+    flags+=("-v")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
+_concave_resolver()
+{
+    last_command="concave_resolver"
+
+    command_aliases=()
+
+    commands=()
+    commands+=("logs")
+    commands+=("restart")
+    commands+=("status")
 
     flags=()
     two_word_flags=()
@@ -641,9 +1282,9 @@ _concave_rollback()
     noun_aliases=()
 }
 
-_concave_self-update()
+_concave_serve()
 {
-    last_command="concave_self-update"
+    last_command="concave_serve"
 
     command_aliases=()
 
@@ -655,6 +1296,10 @@ _concave_self-update()
     flags_with_completion=()
     flags_completion=()
 
+    flags+=("--addr=")
+    two_word_flags+=("--addr")
+    local_nonpersistent_flags+=("--addr")
+    local_nonpersistent_flags+=("--addr=")
     flags+=("--verbose")
     flags+=("-v")
 
@@ -773,9 +1418,241 @@ _concave_stop()
     noun_aliases=()
 }
 
+_concave_team_add-user()
+{
+    last_command="concave_team_add-user"
+
+    command_aliases=()
+
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--group=")
+    two_word_flags+=("--group")
+    local_nonpersistent_flags+=("--group")
+    local_nonpersistent_flags+=("--group=")
+    flags+=("--user=")
+    two_word_flags+=("--user")
+    local_nonpersistent_flags+=("--user")
+    local_nonpersistent_flags+=("--user=")
+    flags+=("--verbose")
+    flags+=("-v")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
+_concave_team_create()
+{
+    last_command="concave_team_create"
+
+    command_aliases=()
+
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--name=")
+    two_word_flags+=("--name")
+    local_nonpersistent_flags+=("--name")
+    local_nonpersistent_flags+=("--name=")
+    flags+=("--preset=")
+    two_word_flags+=("--preset")
+    local_nonpersistent_flags+=("--preset")
+    local_nonpersistent_flags+=("--preset=")
+    flags+=("--verbose")
+    flags+=("-v")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
+_concave_team_delete()
+{
+    last_command="concave_team_delete"
+
+    command_aliases=()
+
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--name=")
+    two_word_flags+=("--name")
+    local_nonpersistent_flags+=("--name")
+    local_nonpersistent_flags+=("--name=")
+    flags+=("--verbose")
+    flags+=("-v")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
+_concave_team_list()
+{
+    last_command="concave_team_list"
+
+    command_aliases=()
+
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--verbose")
+    flags+=("-v")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
+_concave_team_remove-user()
+{
+    last_command="concave_team_remove-user"
+
+    command_aliases=()
+
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--group=")
+    two_word_flags+=("--group")
+    local_nonpersistent_flags+=("--group")
+    local_nonpersistent_flags+=("--group=")
+    flags+=("--user=")
+    two_word_flags+=("--user")
+    local_nonpersistent_flags+=("--user")
+    local_nonpersistent_flags+=("--user=")
+    flags+=("--verbose")
+    flags+=("-v")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
+_concave_team_status()
+{
+    last_command="concave_team_status"
+
+    command_aliases=()
+
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--verbose")
+    flags+=("-v")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
+_concave_team()
+{
+    last_command="concave_team"
+
+    command_aliases=()
+
+    commands=()
+    commands+=("add-user")
+    commands+=("create")
+    commands+=("delete")
+    commands+=("list")
+    commands+=("remove-user")
+    commands+=("status")
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--verbose")
+    flags+=("-v")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
 _concave_update()
 {
     last_command="concave_update"
+
+    command_aliases=()
+
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--verbose")
+    flags+=("-v")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
+_concave_upgrade()
+{
+    last_command="concave_upgrade"
+
+    command_aliases=()
+
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--verbose")
+    flags+=("-v")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
+_concave_whoami()
+{
+    last_command="concave_whoami"
 
     command_aliases=()
 
@@ -817,30 +1694,6 @@ _concave_workspace_backup()
     noun_aliases=()
 }
 
-_concave_workspace_clean()
-{
-    last_command="concave_workspace_clean"
-
-    command_aliases=()
-
-    commands=()
-
-    flags=()
-    two_word_flags=()
-    local_nonpersistent_flags=()
-    flags_with_completion=()
-    flags_completion=()
-
-    flags+=("--outputs")
-    local_nonpersistent_flags+=("--outputs")
-    flags+=("--verbose")
-    flags+=("-v")
-
-    must_have_one_flag=()
-    must_have_one_noun=()
-    noun_aliases=()
-}
-
 _concave_workspace_init()
 {
     last_command="concave_workspace_init"
@@ -855,6 +1708,30 @@ _concave_workspace_init()
     flags_with_completion=()
     flags_completion=()
 
+    flags+=("--verbose")
+    flags+=("-v")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
+_concave_workspace_prune()
+{
+    last_command="concave_workspace_prune"
+
+    command_aliases=()
+
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--outputs")
+    local_nonpersistent_flags+=("--outputs")
     flags+=("--verbose")
     flags+=("-v")
 
@@ -893,8 +1770,8 @@ _concave_workspace()
 
     commands=()
     commands+=("backup")
-    commands+=("clean")
     commands+=("init")
+    commands+=("prune")
     commands+=("status")
 
     flags=()
@@ -919,24 +1796,32 @@ _concave_root_command()
 
     commands=()
     commands+=("changelog")
-    commands+=("doctor")
-    commands+=("driver-wizard")
+    commands+=("check")
+    commands+=("env")
     commands+=("exec")
+    commands+=("fleet")
+    commands+=("gpu")
     commands+=("help")
     commands+=("install")
     commands+=("lab")
     commands+=("list")
     commands+=("logs")
+    commands+=("mesh")
+    commands+=("node")
     commands+=("remove")
+    commands+=("resolver")
     commands+=("restart")
     commands+=("rollback")
-    commands+=("self-update")
+    commands+=("serve")
     commands+=("setup")
     commands+=("shell")
     commands+=("start")
     commands+=("status")
     commands+=("stop")
+    commands+=("team")
     commands+=("update")
+    commands+=("upgrade")
+    commands+=("whoami")
     commands+=("workspace")
 
     flags=()

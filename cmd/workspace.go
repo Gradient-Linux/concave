@@ -7,7 +7,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var workspaceCleanOutputs bool
+var workspacePruneOutputs bool
 
 var workspaceCmd = &cobra.Command{
 	Use:   "workspace",
@@ -57,23 +57,32 @@ var workspaceBackupCmd = &cobra.Command{
 	},
 }
 
-var workspaceCleanCmd = &cobra.Command{
-	Use:   "clean",
-	Short: "Clean generated workspace directories",
+var workspacePruneCmd = &cobra.Command{
+	Use:   "prune",
+	Short: "Prune generated workspace directories",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if !workspaceCleanOutputs {
-			return fmt.Errorf("workspace clean requires --outputs")
+		if !workspacePruneOutputs {
+			return fmt.Errorf("workspace prune requires --outputs")
 		}
 		if err := workspaceClean(); err != nil {
-			return fmt.Errorf("workspace clean: %w", err)
+			return fmt.Errorf("workspace prune: %w", err)
 		}
 		ui.Pass("Outputs", "cleaned")
 		return nil
 	},
 }
 
+var workspaceCleanCmd = &cobra.Command{
+	Use:        "clean",
+	Short:      "Deprecated: use 'concave workspace prune'",
+	Deprecated: "use 'concave workspace prune' instead",
+	Hidden:     true,
+	RunE:       workspacePruneCmd.RunE,
+}
+
 func init() {
-	workspaceCleanCmd.Flags().BoolVar(&workspaceCleanOutputs, "outputs", false, "clean ~/gradient/outputs contents")
-	workspaceCmd.AddCommand(workspaceInitCmd, workspaceStatusCmd, workspaceBackupCmd, workspaceCleanCmd)
+	workspacePruneCmd.Flags().BoolVar(&workspacePruneOutputs, "outputs", false, "prune ~/gradient/outputs contents")
+	workspaceCleanCmd.Flags().BoolVar(&workspacePruneOutputs, "outputs", false, "prune ~/gradient/outputs contents")
+	workspaceCmd.AddCommand(workspaceInitCmd, workspaceStatusCmd, workspaceBackupCmd, workspacePruneCmd, workspaceCleanCmd)
 	rootCmd.AddCommand(workspaceCmd)
 }

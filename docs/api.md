@@ -89,7 +89,13 @@ The payload includes:
 
 ### Read-only operational endpoints
 
-- `GET /api/v1/doctor`
+- `GET /api/v1/check`
+- `GET /api/v1/env/status`
+- `GET /api/v1/env/diff`
+- `GET /api/v1/node/status`
+- `GET /api/v1/fleet/status`
+- `GET /api/v1/fleet/peers`
+- `GET /api/v1/teams`
 - `GET /api/v1/workspace`
 - `GET /api/v1/system/info`
 - `GET /api/v1/system/users`
@@ -105,7 +111,7 @@ clients.
 ### Mutating operational endpoints
 
 - `POST /api/v1/workspace/backup`
-- `POST /api/v1/workspace/clean`
+- `POST /api/v1/workspace/prune`
 - `POST /api/v1/system/reboot`
 - `POST /api/v1/system/shutdown`
 - `POST /api/v1/system/restart-docker`
@@ -124,13 +130,13 @@ These routes enqueue or perform privileged lifecycle actions after role checks.
 The permission model is shared between CLI enforcement and server middleware.
 
 - Viewer:
-  - doctor, status, logs, metrics, workspace status
+  - check, status, logs, metrics, workspace status
 - Developer:
   - Viewer permissions
   - lab, shell, exec, container-terminal-level operations
 - Operator:
   - Developer permissions
-  - install, remove, start, stop, update, rollback, backup, clean
+  - install, remove, start, stop, update, rollback, backup, prune
 - Admin:
   - Operator permissions
   - reboot, shutdown, restart Docker, user-management views, host terminal

@@ -64,6 +64,8 @@ var (
 
 	gpuDetectState             = gpu.Detect
 	gpuDetectAMDState          = gpu.DetectAMD
+	gpuComputeCapability       = gpu.ComputeCapability
+	gpuNVIDIADevices           = gpu.NVIDIADevices
 	gpuRecommendedDriverBranch = gpu.RecommendedDriverBranch
 	gpuToolkitConfigured       = gpu.ToolkitConfigured
 	gpuVerifyPassthrough       = gpu.VerifyPassthrough

@@ -56,11 +56,11 @@ func lookupGroup(gid string) (*user.Group, error) {
 
 func allowedCommandNames(role auth.Role) []string {
 	all := [][]string{
-		{"doctor", "whoami"},
-		{"status", "list", "logs", "changelog", "workspace status"},
+		{"check", "whoami", "gpu check", "gpu info"},
+		{"status", "list", "logs", "changelog", "workspace status", "fleet status", "fleet peers", "node status", "env status", "env diff", "env baseline show", "resolver status", "resolver logs", "mesh status", "mesh logs", "team list", "team status"},
 		{"lab", "shell", "exec"},
-		{"install", "remove", "start", "stop", "restart", "update", "rollback", "workspace backup", "workspace clean"},
-		{"serve", "driver-wizard", "setup", "self-update"},
+		{"install", "remove", "start", "stop", "restart", "update", "rollback", "workspace backup", "workspace prune", "team create", "team delete", "team add-user", "team remove-user", "node set", "env export", "env apply", "env rollback", "env baseline set"},
+		{"serve", "gpu setup", "setup", "upgrade", "resolver restart", "mesh restart"},
 	}
 	allowed := make([]string, 0, 16)
 	for idx, commands := range all {
@@ -73,10 +73,10 @@ func allowedCommandNames(role auth.Role) []string {
 
 func disallowedCommandNames(role auth.Role) []string {
 	all := []string{
-		"status", "list", "logs", "changelog", "workspace status",
+		"status", "list", "logs", "changelog", "workspace status", "fleet status", "fleet peers", "node status", "env status", "env diff", "env baseline show", "resolver status", "resolver logs", "mesh status", "mesh logs", "team list", "team status",
 		"lab", "shell", "exec",
-		"install", "remove", "start", "stop", "restart", "update", "rollback", "workspace backup", "workspace clean",
-		"serve", "driver-wizard", "setup", "self-update",
+		"install", "remove", "start", "stop", "restart", "update", "rollback", "workspace backup", "workspace prune", "team create", "team delete", "team add-user", "team remove-user", "node set", "env export", "env apply", "env rollback", "env baseline set",
+		"serve", "gpu setup", "setup", "upgrade", "resolver restart", "mesh restart",
 	}
 	allowed := map[string]struct{}{}
 	for _, command := range allowedCommandNames(role) {

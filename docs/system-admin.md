@@ -6,10 +6,10 @@
 
 Access is derived from Unix group membership. There is no separate app user database.
 
-- `gradient-viewer`: read-only status, logs, metrics, doctor, workspace views
+- `gradient-viewer`: read-only status, logs, metrics, check, workspace views
 - `gradient-developer`: viewer access plus lab, shell, and exec actions
-- `gradient-operator`: developer access plus install, remove, start, stop, update, rollback, backup, and clean
-- `gradient-admin`: operator access plus `concave serve`, restart-docker, reboot, shutdown, driver-wizard, and self-update
+- `gradient-operator`: developer access plus install, remove, start, stop, update, rollback, backup, and prune
+- `gradient-admin`: operator access plus `concave serve`, restart-docker, reboot, shutdown, gpu setup, and upgrade
 
 If a user belongs to multiple `gradient-*` groups, the highest role wins at runtime.
 That is treated as a host misconfiguration and should be corrected by an admin.
@@ -24,7 +24,7 @@ Diagnostic commands remain ungated:
 - `concave`
 - `concave --help`
 - `concave --version`
-- `concave doctor`
+- `concave check`
 - `concave whoami`
 
 Use `concave whoami` to confirm the current user, groups, role, and allowed command set.
@@ -36,7 +36,7 @@ Use `concave whoami` to confirm the current user, groups, role, and allowed comm
 It provides:
 
 - `/api/v1/auth/*` login, logout, refresh, and identity endpoints
-- authenticated suite, workspace, doctor, users, and system endpoints
+- authenticated suite, workspace, check, users, and system endpoints
 - WebSocket endpoints for container and host terminals
 
 JWT signing material is stored in the auth config under the configured workspace root.

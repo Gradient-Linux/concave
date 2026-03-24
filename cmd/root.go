@@ -111,7 +111,7 @@ func isExemptCommand(cmd *cobra.Command) bool {
 	}
 	path := strings.TrimSpace(strings.TrimPrefix(cmd.CommandPath(), "concave"))
 	switch path {
-	case "", "doctor", "completion", "whoami":
+	case "", "check", "doctor", "completion", "whoami":
 		return true
 	default:
 		return false
@@ -120,17 +120,15 @@ func isExemptCommand(cmd *cobra.Command) bool {
 
 func requiredRoleForCommand(cmd *cobra.Command) (auth.Role, bool) {
 	switch strings.TrimSpace(strings.TrimPrefix(cmd.CommandPath(), "concave")) {
-	case "status", "list", "logs", "changelog":
+	case "status", "list", "logs", "changelog", "fleet status", "fleet peers", "node status", "env status", "env diff", "env baseline show", "resolver status", "resolver logs", "mesh status", "mesh logs", "gpu check", "gpu info":
 		return auth.RoleViewer, true
 	case "lab", "shell", "exec":
 		return auth.RoleDeveloper, true
 	case "workspace status":
 		return auth.RoleViewer, true
-	case "workspace backup", "workspace clean":
+	case "workspace backup", "workspace prune", "install", "remove", "start", "stop", "restart", "update", "rollback", "team create", "team delete", "team add-user", "team remove-user", "team list", "team status", "node set", "env export", "env apply", "env rollback", "env baseline set":
 		return auth.RoleOperator, true
-	case "install", "remove", "start", "stop", "restart", "update", "rollback":
-		return auth.RoleOperator, true
-	case "serve", "driver-wizard", "setup", "self-update":
+	case "serve", "gpu setup", "driver-wizard", "setup", "upgrade", "self-update", "resolver restart", "mesh restart":
 		return auth.RoleAdmin, true
 	default:
 		return 0, false

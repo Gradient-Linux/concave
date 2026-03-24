@@ -45,7 +45,7 @@ support for the full execution path.
 - Startup path: long-running helper container with `sleep infinity`
 - Dependencies: NVIDIA driver, NVIDIA Container Toolkit, working Docker GPU passthrough
 - Health and logs: should remain running and see GPUs through the container runtime
-- Troubleshooting: if startup fails, rerun `concave doctor` and `concave driver-wizard`
+- Troubleshooting: if startup fails, rerun `concave check` and `concave gpu setup`
 - Update and rollback behavior: rollback restores the previously recorded training image
 
 ### `gradient-neural-infer`

@@ -30,10 +30,21 @@ var (
 	selfUpdateTargetPath  = "/usr/local/bin/concave"
 )
 
-var selfUpdateCmd = &cobra.Command{
-	Use:   "self-update",
+var upgradeCmd = &cobra.Command{
+	Use:   "upgrade",
 	Short: "Download and atomically replace the concave binary",
-	RunE: func(cmd *cobra.Command, args []string) error {
+	RunE:  runUpgrade,
+}
+
+var selfUpdateCmd = &cobra.Command{
+	Use:        "self-update",
+	Short:      "Deprecated: use 'concave upgrade'",
+	Deprecated: "use 'concave upgrade' instead",
+	Hidden:     true,
+	RunE:       runUpgrade,
+}
+
+func runUpgrade(cmd *cobra.Command, args []string) error {
 		var tempPath string
 		ctx, stop := systemSignalHandler(context.Background(), func() {
 			if tempPath != "" {
@@ -109,9 +120,9 @@ var selfUpdateCmd = &cobra.Command{
 		}
 		ui.Pass("Updated", manifest.Version)
 		return nil
-	},
 }
 
 func init() {
+	rootCmd.AddCommand(upgradeCmd)
 	rootCmd.AddCommand(selfUpdateCmd)
 }

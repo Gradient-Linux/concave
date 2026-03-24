@@ -14,7 +14,7 @@ GPU inspection, and rollback metadata.
 
 ## Runtime Model
 
-1. `concave doctor` inspects Docker, network reachability, workspace state, and GPU
+1. `concave check` inspects Docker, network reachability, workspace state, and GPU
    support.
 2. `concave workspace init` creates the canonical `~/gradient/` tree.
 3. The suite registry defines containers, ports, mounts, and GPU requirements.

@@ -6,8 +6,8 @@
 - AMD GPU
 - CPU-only host
 
-CPU-only hosts are valid. They should not fail `concave doctor`, and `concave
-driver-wizard` should exit cleanly with guidance that no driver changes are required.
+CPU-only hosts are valid. They should not fail `concave check`, and `concave
+gpu setup` should exit cleanly with guidance that no driver changes are required.
 
 ## NVIDIA
 
@@ -28,7 +28,7 @@ Driver branch mapping in `concave`:
 ## AMD
 
 AMD detection is present for operator visibility. Full ROCm support is deferred and
-should warn rather than fail the CLI. `concave driver-wizard` should stop after the AMD
+should warn rather than fail the CLI. `concave gpu setup` should stop after the AMD
 warning rather than attempting NVIDIA-specific checks.
 
 ## Secure Boot
@@ -37,6 +37,6 @@ If Secure Boot is enabled, the driver wizard should never disable it automatical
 user gets two paths only:
 
 - continue and enroll a MOK key on the next reboot
-- exit, disable Secure Boot in firmware, and rerun `concave driver-wizard`
+- exit, disable Secure Boot in firmware, and rerun `concave gpu setup`
 
 No other automatic Secure Boot mutation is allowed.

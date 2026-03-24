@@ -107,7 +107,7 @@ Package install on an Ubuntu host:
 
 ```bash
 curl -fsSL https://packages.gradientlinux.io/install.sh | sudo bash
-concave doctor
+concave check
 concave setup
 concave whoami
 ```
@@ -118,7 +118,7 @@ Manual local development:
 go test ./...
 go test -race ./...
 go build -o concave .
-./concave doctor
+./concave check
 ./concave workspace init
 ```
 
@@ -132,10 +132,17 @@ This keeps normal command output on stdout and writes structured diagnostics to 
 
 ## Core commands
 
-- `concave doctor`
-- `concave workspace init|status|backup|clean`
+- `concave check`
+- `concave gpu setup|check|info`
+- `concave workspace init|status|backup|prune`
 - `concave install|remove|start|stop|restart|update|rollback <suite>`
 - `concave logs <suite>`
+- `concave env status|diff|export|apply|rollback|baseline`
+- `concave node status|set`
+- `concave fleet status|peers`
+- `concave team create|list|status|add-user|remove-user|delete`
+- `concave resolver status|logs|restart`
+- `concave mesh status|logs|restart`
 - `concave lab`
 - `concave whoami`
 - `concave serve`

@@ -51,7 +51,7 @@ func runSetup(cmd *cobra.Command, args []string) error {
 			ui.Info("Skipping", string(config.StepDriverInstall)+" already complete")
 		} else {
 			if gpuState == gpu.GPUStateNVIDIA && ui.Confirm("Run NVIDIA driver verification now?") {
-				if err := runDriverWizard(driverWizardCmd, nil); err != nil {
+				if err := runGPUSetup(gpuSetupCmd, nil); err != nil {
 					return err
 				}
 			}
