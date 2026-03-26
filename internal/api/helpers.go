@@ -1,11 +1,13 @@
 package api
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"os/exec"
 	"sort"
@@ -28,11 +30,17 @@ type suiteSummary struct {
 	State         string              `json:"state"`
 	Current       string              `json:"current,omitempty"`
 	Previous      string              `json:"previous,omitempty"`
-	Ports         []suite.PortMapping `json:"ports"`
+	Ports         []apiPortMapping    `json:"ports"`
 	Containers    []containerInfo     `json:"containers"`
 	GPURequired   bool                `json:"gpu_required"`
 	Error         string              `json:"error,omitempty"`
 	ComposeExists bool                `json:"compose_exists"`
+}
+
+type apiPortMapping struct {
+	Host        int    `json:"host"`
+	Container   int    `json:"container"`
+	Description string `json:"description,omitempty"`
 }
 
 type containerInfo struct {
@@ -117,7 +125,7 @@ func suiteSnapshot(name string) suiteSummary {
 			Name:          name,
 			Installed:     false,
 			State:         "not-installed",
-			Ports:         base.Ports,
+			Ports:         apiPorts(base.Ports),
 			GPURequired:   base.GPURequired,
 			ComposeExists: composeExists,
 		}
@@ -129,7 +137,7 @@ func suiteSnapshot(name string) suiteSummary {
 			Name:          name,
 			Installed:     true,
 			State:         "unconfigured",
-			Ports:         base.Ports,
+			Ports:         apiPorts(base.Ports),
 			GPURequired:   base.GPURequired,
 			ComposeExists: composeExists,
 			Error:         err.Error(),
@@ -187,11 +195,23 @@ func suiteSnapshot(name string) suiteSummary {
 		State:         state,
 		Current:       current,
 		Previous:      previous,
-		Ports:         s.Ports,
+		Ports:         apiPorts(s.Ports),
 		Containers:    containers,
 		GPURequired:   s.GPURequired,
 		ComposeExists: composeExists,
 	}
+}
+
+func apiPorts(ports []suite.PortMapping) []apiPortMapping {
+	mapped := make([]apiPortMapping, 0, len(ports))
+	for _, port := range ports {
+		mapped = append(mapped, apiPortMapping{
+			Host:        port.Port,
+			Container:   port.Port,
+			Description: port.Service,
+		})
+	}
+	return mapped
 }
 
 func workspaceSnapshot() (workspacePayload, error) {
@@ -366,6 +386,16 @@ func labURL(name string) (string, error) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
+	status, err := docker.ContainerStatus(ctx, container)
+	if err != nil {
+		return "", err
+	}
+	if status != "running" {
+		return "", fmt.Errorf("suite not running")
+	}
+	if reachableGradientLabURL, ok := gradientLabURL(); ok {
+		return reachableGradientLabURL, nil
+	}
 	out, err := exec.CommandContext(ctx, "docker", "exec", container, "jupyter", "server", "list", "--json").CombinedOutput()
 	if err != nil {
 		return "", err
@@ -386,8 +416,29 @@ func labURL(name string) (string, error) {
 	return "", fmt.Errorf("unable to resolve Jupyter token")
 }
 
-func streamDockerLogs(ctx context.Context, container string, onLine func(string)) error {
-	cmd := exec.CommandContext(ctx, "docker", "logs", "--tail", "100", "-f", container)
+func gradientLabURL() (string, bool) {
+	conn, err := net.DialTimeout("tcp", "127.0.0.1:8889", 750*time.Millisecond)
+	if err != nil {
+		return "", false
+	}
+	_ = conn.Close()
+	return "http://127.0.0.1:8889/lab", true
+}
+
+func streamComposeLogs(ctx context.Context, composePath, service string, lines int, follow bool, onLine func(string)) error {
+	args := []string{"compose", "-f", composePath, "logs", "--no-color"}
+	if follow {
+		args = append(args, "--follow")
+	}
+	if lines <= 0 {
+		lines = 50
+	}
+	args = append(args, "--tail", fmt.Sprintf("%d", lines))
+	if service != "" {
+		args = append(args, service)
+	}
+
+	cmd := exec.CommandContext(ctx, "docker", args...)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return err
@@ -399,22 +450,51 @@ func streamDockerLogs(ctx context.Context, container string, onLine func(string)
 	if err := cmd.Start(); err != nil {
 		return err
 	}
+
 	done := make(chan error, 2)
 	consume := func(reader io.Reader) {
-		buf := new(bytes.Buffer)
-		_, copyErr := io.Copy(buf, reader)
-		if buf.Len() > 0 {
-			for _, line := range strings.Split(strings.TrimSuffix(buf.String(), "\n"), "\n") {
-				if line != "" {
-					onLine(line)
-				}
+		scanner := bufio.NewScanner(reader)
+		scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+		for scanner.Scan() {
+			line := normalizeComposeLogLine(scanner.Text(), service == "")
+			if line != "" {
+				onLine(line)
 			}
 		}
-		done <- copyErr
+		done <- scanner.Err()
 	}
 	go consume(stdout)
 	go consume(stderr)
-	<-done
-	<-done
-	return cmd.Wait()
+	for i := 0; i < 2; i++ {
+		if scanErr := <-done; scanErr != nil && ctx.Err() == nil {
+			_ = cmd.Process.Kill()
+			_ = cmd.Wait()
+			return scanErr
+		}
+	}
+	waitErr := cmd.Wait()
+	if ctx.Err() != nil {
+		return nil
+	}
+	return waitErr
+}
+
+func normalizeComposeLogLine(line string, includeServicePrefix bool) string {
+	line = strings.TrimRight(line, "\r\n")
+	if line == "" {
+		return ""
+	}
+	index := strings.Index(line, " | ")
+	if index <= 0 {
+		return line
+	}
+	service := strings.TrimSpace(line[:index])
+	message := strings.TrimSpace(line[index+3:])
+	if !includeServicePrefix {
+		return message
+	}
+	if service == "" {
+		return message
+	}
+	return "[" + service + "] " + message
 }

@@ -22,6 +22,8 @@ var layout = []struct {
 	{"backups", 0o755},
 }
 
+var systemWorkspaceConfigPaths = []string{"/etc/default/concave", "/etc/default/concave-serve"}
+
 // Root returns the fixed Gradient workspace root.
 func Root() string {
 	if override := os.Getenv("GRADIENT_WORKSPACE_ROOT"); override != "" {
@@ -30,6 +32,19 @@ func Root() string {
 	if override := loadSystemWorkspaceRoot(); override != "" {
 		return override
 	}
+	return defaultUserRoot()
+}
+
+// UserRoot returns the interactive user workspace root and ignores
+// system service defaults unless the environment explicitly overrides them.
+func UserRoot() string {
+	if override := os.Getenv("GRADIENT_WORKSPACE_ROOT"); override != "" {
+		return override
+	}
+	return defaultUserRoot()
+}
+
+func defaultUserRoot() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "~/gradient"
@@ -92,20 +107,22 @@ func CleanOutputs() error {
 }
 
 func loadSystemWorkspaceRoot() string {
-	data, err := os.ReadFile("/etc/default/concave")
-	if err != nil {
-		return ""
-	}
-	for _, line := range strings.Split(string(data), "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "#") {
+	for _, path := range systemWorkspaceConfigPaths {
+		data, err := os.ReadFile(path)
+		if err != nil {
 			continue
 		}
-		key, value, ok := strings.Cut(line, "=")
-		if !ok || strings.TrimSpace(key) != "GRADIENT_WORKSPACE_ROOT" {
-			continue
+		for _, line := range strings.Split(string(data), "\n") {
+			line = strings.TrimSpace(line)
+			if line == "" || strings.HasPrefix(line, "#") {
+				continue
+			}
+			key, value, ok := strings.Cut(line, "=")
+			if !ok || strings.TrimSpace(key) != "GRADIENT_WORKSPACE_ROOT" {
+				continue
+			}
+			return strings.Trim(strings.TrimSpace(value), `"'`)
 		}
-		return strings.Trim(strings.TrimSpace(value), `"'`)
 	}
 	return ""
 }

@@ -69,13 +69,13 @@ var envBaselineCmd = &cobra.Command{
 var envBaselineSetCmd = &cobra.Command{
 	Use:   "set",
 	Short: "Set the current baseline",
-	RunE:  runScaffoldCommand,
+	RunE:  runEnvBaselineSet,
 }
 
 var envBaselineShowCmd = &cobra.Command{
 	Use:   "show",
 	Short: "Show the current baseline",
-	RunE:  runScaffoldCommand,
+	RunE:  runEnvBaselineShow,
 }
 
 func init() {
@@ -164,5 +164,33 @@ func printDriftReports(group string, reports []resolverclient.DriftReport) error
 		}
 		ui.Warn(report.Group, fmt.Sprintf("%d packages flagged", len(report.Diffs)))
 	}
+	return nil
+}
+
+func runEnvBaselineSet(cmd *cobra.Command, args []string) error {
+	snapshot, err := resolverclient.ApplyBaseline("", envGroup, "")
+	if errors.Is(err, resolverclient.ErrUnavailable) {
+		ui.Warn("Resolver", maximaNotImplementedMessage)
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	ui.Pass("Baseline", fmt.Sprintf("%s @ %s", snapshot.Group, snapshot.Timestamp.Format("2006-01-02 15:04:05 MST")))
+	ui.Info("Packages", fmt.Sprintf("%d", len(snapshot.Packages)))
+	return nil
+}
+
+func runEnvBaselineShow(cmd *cobra.Command, args []string) error {
+	snapshot, err := resolverclient.QueryBaseline("", envGroup)
+	if errors.Is(err, resolverclient.ErrUnavailable) {
+		ui.Warn("Resolver", maximaNotImplementedMessage)
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	ui.Pass("Baseline", fmt.Sprintf("%s @ %s", snapshot.Group, snapshot.Timestamp.Format("2006-01-02 15:04:05 MST")))
+	ui.Info("Packages", fmt.Sprintf("%d", len(snapshot.Packages)))
 	return nil
 }

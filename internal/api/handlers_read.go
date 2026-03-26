@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -25,16 +27,16 @@ func (a *App) handleMetricsStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ticker := time.NewTicker(time.Second)
+	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 	for {
-		payload := map[string]any{
-			"workspace": workspaceSnapshotOrNil(),
-			"suites":    suiteSummaries(),
-			"gpu":       gpuMetrics(),
-			"cpu":       cpuMetrics(),
-			"memory":    memoryMetrics(),
-			"timestamp": time.Now().UTC(),
+		payload := metricsPayload{
+			Workspace: workspaceSnapshotOrNil(),
+			Suites:    suiteSummaries(),
+			GPU:       gpuMetrics(),
+			CPU:       cpuMetrics(),
+			Memory:    memoryMetrics(),
+			Timestamp: time.Now().UTC().Format(time.RFC3339),
 		}
 		data, _ := json.Marshal(payload)
 		_, _ = fmt.Fprintf(w, "event: metrics\ndata: %s\n\n", data)
@@ -140,26 +142,40 @@ func workspaceSnapshotOrNil() any {
 	return payload
 }
 
-func gpuMetrics() map[string]any {
+func gpuMetrics() gpuMetricsPayload {
+	state, err := gpu.Detect()
+	if err != nil {
+		return gpuMetricsPayload{Error: err.Error()}
+	}
+	switch state {
+	case gpu.GPUStateNone:
+		return gpuMetricsPayload{Error: "no GPU detected"}
+	case gpu.GPUStateAMD:
+		return gpuMetricsPayload{Error: "GPU metrics unavailable for AMD hosts"}
+	}
+
 	devices, err := gpuMetricsDevices()
 	if err != nil {
-		return map[string]any{"error": err.Error()}
+		return gpuMetricsPayload{Error: err.Error()}
 	}
-	return map[string]any{"devices": devices}
+	return gpuMetricsPayload{Devices: devices}
 }
 
-func gpuMetricsDevices() ([]map[string]any, error) {
+func gpuMetricsDevices() ([]gpuDeviceMetric, error) {
 	devices, err := gpu.NVIDIADevices()
 	if err != nil {
 		return nil, err
 	}
-	result := make([]map[string]any, 0, len(devices))
+	if len(devices) == 0 {
+		return nil, fmt.Errorf("no GPU detected")
+	}
+	result := make([]gpuDeviceMetric, 0, len(devices))
 	for _, device := range devices {
-		result = append(result, map[string]any{
-			"name":         device.Name,
-			"utilization":  device.Utilization,
-			"memory_used":  device.MemoryUsedMiB,
-			"memory_total": device.MemoryTotalMiB,
+		result = append(result, gpuDeviceMetric{
+			Name:        device.Name,
+			Utilization: float64(device.Utilization),
+			MemoryUsed:  int64(device.MemoryUsedMiB),
+			MemoryTotal: int64(device.MemoryTotalMiB),
 		})
 	}
 	return result, nil
@@ -263,21 +279,39 @@ func activeUsers() ([]map[string]any, error) {
 				"role":           role,
 				"containers":     []map[string]any{},
 				"gpu_memory_mib": 0,
-				"last_active":    time.Now().UTC(),
+				"last_active":    time.Time{},
 			}
 		}
 		entry := index[username]
 		entry["containers"] = append(entry["containers"].([]map[string]any), container)
-		entry["last_active"] = time.Now().UTC()
+		if memoryMiB, ok := container["gpu_memory_mib"].(int); ok && memoryMiB > 0 {
+			entry["gpu_memory_mib"] = entry["gpu_memory_mib"].(int) + memoryMiB
+		}
+		if lastActive, ok := container["last_active"].(time.Time); ok {
+			current := entry["last_active"].(time.Time)
+			if current.IsZero() || lastActive.After(current) {
+				entry["last_active"] = lastActive
+			}
+		}
 	}
 	list := make([]map[string]any, 0, len(index))
-	for _, entry := range index {
+	usernames := make([]string, 0, len(index))
+	for username := range index {
+		usernames = append(usernames, username)
+	}
+	sort.Strings(usernames)
+	for _, username := range usernames {
+		entry := index[username]
+		if entry["last_active"].(time.Time).IsZero() {
+			delete(entry, "last_active")
+		}
 		list = append(list, entry)
 	}
 	return list, nil
 }
 
 func labeledContainerStats() ([]map[string]any, error) {
+	statsByName, _ := dockerStatsByName()
 	out, err := exec.Command("docker", "ps", "-a", "--format", "{{.Names}}").CombinedOutput()
 	if err != nil {
 		return nil, err
@@ -294,7 +328,8 @@ func labeledContainerStats() ([]map[string]any, error) {
 				Labels map[string]string `json:"Labels"`
 			} `json:"Config"`
 			State struct {
-				Status string `json:"Status"`
+				Status    string `json:"Status"`
+				StartedAt string `json:"StartedAt"`
 			} `json:"State"`
 		}
 		if json.Unmarshal(inspectOut, &payload) != nil || len(payload) == 0 {
@@ -303,16 +338,88 @@ func labeledContainerStats() ([]map[string]any, error) {
 		labels := payload[0].Config.Labels
 		username := labels["gradient.user"]
 		if username == "" {
-			continue
+			username = currentUser()
 		}
+		lastActive, _ := time.Parse(time.RFC3339Nano, payload[0].State.StartedAt)
+		runtimeStat := statsByName[name]
 		stats = append(stats, map[string]any{
-			"name":       name,
-			"suite":      labels["gradient.suite"],
-			"status":     payload[0].State.Status,
-			"user":       username,
-			"cpu_percent": 0,
-			"memory_mib":  0,
+			"name":           name,
+			"suite":          labels["gradient.suite"],
+			"status":         payload[0].State.Status,
+			"user":           username,
+			"cpu_percent":    runtimeStat.CPUPercent,
+			"memory_mib":     runtimeStat.MemoryMiB,
+			"gpu_memory_mib": 0,
+			"last_active":    lastActive.UTC(),
 		})
 	}
 	return stats, nil
+}
+
+type dockerRuntimeStat struct {
+	CPUPercent float64
+	MemoryMiB  int
+}
+
+func dockerStatsByName() (map[string]dockerRuntimeStat, error) {
+	out, err := exec.Command("docker", "stats", "--no-stream", "--format", "{{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}").CombinedOutput()
+	if err != nil {
+		return nil, err
+	}
+	stats := map[string]dockerRuntimeStat{}
+	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		parts := strings.SplitN(line, "\t", 3)
+		if len(parts) != 3 {
+			continue
+		}
+		stats[parts[0]] = dockerRuntimeStat{
+			CPUPercent: parseDockerPercent(parts[1]),
+			MemoryMiB:  parseDockerMiB(parts[2]),
+		}
+	}
+	return stats, nil
+}
+
+func parseDockerPercent(raw string) float64 {
+	value := strings.TrimSpace(strings.TrimSuffix(raw, "%"))
+	parsed, err := strconv.ParseFloat(value, 64)
+	if err != nil {
+		return 0
+	}
+	return parsed
+}
+
+func parseDockerMiB(raw string) int {
+	used := strings.TrimSpace(strings.SplitN(raw, "/", 2)[0])
+	if used == "" || used == "--" {
+		return 0
+	}
+	index := 0
+	for index < len(used) && ((used[index] >= '0' && used[index] <= '9') || used[index] == '.') {
+		index++
+	}
+	if index == 0 {
+		return 0
+	}
+	value, err := strconv.ParseFloat(used[:index], 64)
+	if err != nil {
+		return 0
+	}
+	unit := strings.TrimSpace(strings.ToLower(used[index:]))
+	switch unit {
+	case "gib", "gb":
+		return int(value * 1024)
+	case "mib", "mb":
+		return int(value)
+	case "kib", "kb":
+		return int(value / 1024)
+	case "b":
+		return int(value / (1024 * 1024))
+	default:
+		return int(value)
+	}
 }

@@ -6,9 +6,11 @@ import (
 	"net/http"
 	"os/exec"
 	"os/user"
+	"strconv"
 	"strings"
 
 	"github.com/Gradient-Linux/concave/internal/docker"
+	"github.com/Gradient-Linux/concave/internal/suite"
 	"github.com/Gradient-Linux/concave/internal/system"
 	"github.com/Gradient-Linux/concave/internal/workspace"
 	"github.com/creack/pty"
@@ -38,6 +40,10 @@ func (a *App) handleWorkspaceBackup(w http.ResponseWriter, r *http.Request) {
 func (a *App) handleWorkspaceClean(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	if !confirmed(r) {
+		writeError(w, http.StatusBadRequest, "confirm: true required")
 		return
 	}
 	writeJSON(w, http.StatusAccepted, a.jobAccepted("workspace-clean", func(rec *JobRecorder) (map[string]any, error) {
@@ -85,6 +91,13 @@ func (a *App) handleSystemCommand(w http.ResponseWriter, r *http.Request, name s
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": name + " initiated"})
+}
+
+func confirmed(r *http.Request) bool {
+	var req struct {
+		Confirm bool `json:"confirm"`
+	}
+	return json.NewDecoder(r.Body).Decode(&req) == nil && req.Confirm
 }
 
 var terminalUpgrader = websocket.Upgrader{
@@ -196,24 +209,63 @@ func (a *App) handlePTY(w http.ResponseWriter, r *http.Request, cmd *exec.Cmd) {
 }
 
 func (a *App) handleSuiteLogs(w http.ResponseWriter, r *http.Request, name string) {
-	container := r.URL.Query().Get("container")
-	if container == "" {
-		s, err := suiteFromCurrentStateOrBase(name)
-		if err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		if len(s.Containers) == 0 {
-			writeError(w, http.StatusBadRequest, "suite has no containers")
-			return
-		}
-		container = s.Containers[0].Name
+	if _, err := suite.Get(name); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
 	}
+
+	summary := suiteSnapshot(name)
+	service := r.URL.Query().Get("service")
+	if service == "" {
+		service = r.URL.Query().Get("container")
+	}
+	lines := 50
+	if raw := r.URL.Query().Get("lines"); raw != "" {
+		if parsed, err := strconv.Atoi(raw); err == nil && parsed > 0 {
+			lines = parsed
+		}
+	}
+	follow := true
+	if raw := r.URL.Query().Get("follow"); raw != "" {
+		if parsed, err := strconv.ParseBool(raw); err == nil {
+			follow = parsed
+		}
+	}
+
+	if service != "" {
+		valid := false
+		for _, container := range summary.Containers {
+			if container.Name == service {
+				valid = true
+				if follow && container.Status != "running" {
+					writeError(w, http.StatusConflict, "service not running")
+					return
+				}
+				break
+			}
+		}
+		if !valid {
+			writeError(w, http.StatusBadRequest, "service not valid for suite")
+			return
+		}
+	}
+
 	conn, err := terminalUpgrader.Upgrade(w, r, nil)
 	if err != nil {
 		return
 	}
 	defer conn.Close()
+
+	if !summary.Installed || len(summary.Containers) == 0 || !summary.ComposeExists {
+		_ = conn.WriteJSON(map[string]string{"line": "no containers running"})
+		return
+	}
+
+	if follow && countRunning(summary.Containers) == 0 {
+		_ = conn.WriteJSON(map[string]string{"error": "suite not running"})
+		return
+	}
+
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
 	go func() {
@@ -224,7 +276,10 @@ func (a *App) handleSuiteLogs(w http.ResponseWriter, r *http.Request, name strin
 			}
 		}
 	}()
-	_ = streamDockerLogs(ctx, container, func(line string) {
-		_ = conn.WriteJSON(map[string]string{"type": "line", "line": line})
+	err = streamComposeLogs(ctx, docker.ComposePath(name), service, lines, follow, func(line string) {
+		_ = conn.WriteJSON(map[string]string{"line": line})
 	})
+	if err != nil && ctx.Err() == nil {
+		_ = conn.WriteJSON(map[string]string{"error": err.Error()})
+	}
 }

@@ -28,6 +28,7 @@ var rootCmd = &cobra.Command{
 	SilenceErrors: true,
 	Version:       Version,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		configureDefaultWorkspaceRoot(cmd)
 		if isExemptCommand(cmd) {
 			return nil
 		}
@@ -103,6 +104,29 @@ func init() {
 			}
 		},
 	})
+}
+
+func configureDefaultWorkspaceRoot(cmd *cobra.Command) {
+	if cmd == nil {
+		return
+	}
+	if _, ok := os.LookupEnv("GRADIENT_WORKSPACE_ROOT"); ok {
+		return
+	}
+	if !shouldUseUserWorkspaceRoot(cmd) {
+		return
+	}
+	_ = os.Setenv("GRADIENT_WORKSPACE_ROOT", workspaceUserRoot())
+}
+
+func shouldUseUserWorkspaceRoot(cmd *cobra.Command) bool {
+	path := strings.TrimSpace(strings.TrimPrefix(cmd.CommandPath(), "concave"))
+	switch path {
+	case "serve":
+		return false
+	default:
+		return true
+	}
 }
 
 func isExemptCommand(cmd *cobra.Command) bool {

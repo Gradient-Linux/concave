@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Gradient Check
+Comment=Run concave check in a terminal
+Exec=xfce4-terminal --title=Gradient\ Check --command=concave\ check
+Icon=utilities-system-monitor
+Terminal=false
+Categories=System;Development;
+StartupNotify=true

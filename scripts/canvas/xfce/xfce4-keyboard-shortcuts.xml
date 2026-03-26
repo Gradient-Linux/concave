@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<channel name="xfce4-keyboard-shortcuts" version="1.0">
+  <property name="commands" type="empty">
+    <property name="custom" type="empty">
+      <property name="&lt;Primary&gt;&lt;Alt&gt;t" type="string" value="xfce4-terminal"/>
+      <property name="&lt;Super&gt;c" type="string" value="xfce4-terminal --command=\"concave check\""/>
+      <property name="&lt;Super&gt;g" type="string" value="xfce4-terminal --command=\"concave setup\""/>
+      <property name="&lt;Super&gt;b" type="string" value="xdg-open http://127.0.0.1:8888"/>
+    </property>
+  </property>
+</channel>

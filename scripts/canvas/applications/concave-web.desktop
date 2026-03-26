@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Gradient Browser
+Comment=Open the local Gradient Linux web interface
+Exec=xdg-open http://127.0.0.1:8888
+Icon=web-browser
+Terminal=false
+Categories=Development;Science;
+StartupNotify=true

@@ -89,15 +89,16 @@ func Install(ctx context.Context, suiteName string, opts InstallOptions) error {
 
 	totalSteps := len(selectedSuite.Containers) + 3
 	step := 0
-	ui.Progress("Install", step, totalSteps)
+	ui.Progress("Preparing install", step, totalSteps)
 	for _, container := range selectedSuite.Containers {
 		logx.Debug("suite install pull", "suite", selectedSuite.Name, "container", container.Name, "image", container.Image)
 		ui.Info("Pulling", container.Image)
-		if err := pullImageWithRollback(ctx, container.Image, nil); err != nil {
+		ui.Progress("Pulling "+progressImageLabel(container.Image), step, totalSteps)
+		if err := pullImageWithRollback(ctx, container.Image, ui.DockerPullReporter("Pulling "+progressImageLabel(container.Image))); err != nil {
 			return fmt.Errorf("step 5 pull images: %w", err)
 		}
 		step++
-		ui.Progress("Install", step, totalSteps)
+		ui.Progress("Pulled "+progressImageLabel(container.Image), step, totalSteps)
 	}
 
 	if err := writeSelectedCompose(selectedSuite); err != nil {
@@ -105,7 +106,7 @@ func Install(ctx context.Context, suiteName string, opts InstallOptions) error {
 	}
 	logx.Debug("suite install compose written", "suite", selectedSuite.Name)
 	step++
-	ui.Progress("Install", step, totalSteps)
+	ui.Progress("Writing compose file", step, totalSteps)
 
 	manifest, err := loadVersionManifest()
 	if err != nil {
@@ -117,16 +118,23 @@ func Install(ctx context.Context, suiteName string, opts InstallOptions) error {
 	}
 	logx.Debug("suite install manifest saved", "suite", selectedSuite.Name)
 	step++
-	ui.Progress("Install", step, totalSteps)
+	ui.Progress("Recording installed state", step, totalSteps)
 
 	if err := addInstalledSuite(selectedSuite.Name); err != nil {
 		return fmt.Errorf("step 8 update state: %w", err)
 	}
-	ui.Progress("Install", totalSteps, totalSteps)
+	ui.Progress("Install complete", totalSteps, totalSteps)
 
 	logx.Debug("suite install complete", "suite", selectedSuite.Name)
 	ui.Pass("Install", selectedSuite.Name+" installed successfully")
 	return nil
+}
+
+func progressImageLabel(image string) string {
+	if len(image) <= 36 {
+		return image
+	}
+	return image[:33] + "..."
 }
 
 func installTarget(name string, opts InstallOptions) (Suite, ForgeSelection, error) {

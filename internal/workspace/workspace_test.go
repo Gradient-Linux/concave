@@ -34,6 +34,28 @@ func TestEnsureLayoutCreatesWorkspace(t *testing.T) {
 	}
 }
 
+func TestUserRootIgnoresSystemWorkspaceDefault(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("GRADIENT_WORKSPACE_ROOT", "")
+
+	systemPath := filepath.Join(t.TempDir(), "concave-serve.env")
+	if err := os.WriteFile(systemPath, []byte("GRADIENT_WORKSPACE_ROOT=/var/lib/gradient\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(%q) error = %v", systemPath, err)
+	}
+	originalPaths := systemWorkspaceConfigPaths
+	systemWorkspaceConfigPaths = []string{systemPath}
+	t.Cleanup(func() {
+		systemWorkspaceConfigPaths = originalPaths
+	})
+
+	if got := UserRoot(); got != filepath.Join(os.Getenv("HOME"), "gradient") {
+		t.Fatalf("UserRoot() = %q, want %q", got, filepath.Join(os.Getenv("HOME"), "gradient"))
+	}
+	if got := Root(); got != "/var/lib/gradient" {
+		t.Fatalf("Root() = %q, want %q", got, "/var/lib/gradient")
+	}
+}
+
 func TestStatusAndCleanOutputs(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	if err := EnsureLayout(); err != nil {

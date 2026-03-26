@@ -21,7 +21,7 @@ var setupCmd = &cobra.Command{
 }
 
 func runSetup(cmd *cobra.Command, args []string) error {
-	return runLockedOperation("setup", 20*time.Minute, cleanupAllComposeTemps(), func(ctx context.Context) error {
+	return runLockedOperation("setup", 90*time.Minute, cleanupAllComposeTemps(), func(ctx context.Context) error {
 		ui.Header("Gradient Linux — concave setup")
 		root := workspaceRoot()
 		if err := ensureWorkspaceLayout(); err != nil {
@@ -72,6 +72,10 @@ func runSetup(cmd *cobra.Command, args []string) error {
 			if err := markStepComplete(root, config.StepInternetCheck); err != nil {
 				return err
 			}
+		}
+
+		if err := ensureDockerRuntime(ctx, "setup"); err != nil {
+			return err
 		}
 
 		selected := []string{"boosting"}

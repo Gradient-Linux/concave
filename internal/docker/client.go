@@ -14,7 +14,10 @@ import (
 	"github.com/Gradient-Linux/concave/internal/logx"
 )
 
-const defaultTimeout = 5 * time.Minute
+const (
+	defaultTimeout = 5 * time.Minute
+	pullTimeout    = 45 * time.Minute
+)
 
 // Runner executes external commands for Docker interactions.
 type Runner interface {
@@ -117,7 +120,7 @@ func Exec(ctx context.Context, container string, cmd ...string) error {
 
 // Pull pulls an image and streams progress lines to the callback.
 func Pull(ctx context.Context, image string, onProgress func(line string)) error {
-	ctx, cancel := withDefaultTimeout(ctx)
+	ctx, cancel := withTimeout(ctx, pullTimeout)
 	defer cancel()
 
 	if err := WithRetry(ctx, DefaultRetryConfig(), func() error {
@@ -195,13 +198,17 @@ func ContainerLogs(ctx context.Context, name string, follow bool) error {
 }
 
 func withDefaultTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
+	return withTimeout(ctx, defaultTimeout)
+}
+
+func withTimeout(ctx context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
 	if ctx == nil {
-		return context.WithTimeout(context.Background(), defaultTimeout)
+		return context.WithTimeout(context.Background(), timeout)
 	}
-	if deadline, ok := ctx.Deadline(); ok && time.Until(deadline) <= defaultTimeout {
+	if deadline, ok := ctx.Deadline(); ok && time.Until(deadline) <= timeout {
 		return context.WithCancel(ctx)
 	}
-	return context.WithTimeout(ctx, defaultTimeout)
+	return context.WithTimeout(ctx, timeout)
 }
 
 func isMissingContainer(err error, out []byte) bool {

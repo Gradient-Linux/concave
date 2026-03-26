@@ -88,3 +88,30 @@ func TestHeaderConfirmAndChecklist(t *testing.T) {
 		t.Fatalf("Checklist() = %#v", selected)
 	}
 }
+
+func TestProgressFallsBackForBufferedOutput(t *testing.T) {
+	var buf bytes.Buffer
+	SetOutput(&buf)
+	defer ResetOutput()
+
+	Progress("Install", 1, 4)
+	EndProgress()
+
+	out := buf.String()
+	if !strings.Contains(out, "Install") {
+		t.Fatalf("expected progress label, got %q", out)
+	}
+	if !strings.Contains(out, "25%") {
+		t.Fatalf("expected percent, got %q", out)
+	}
+}
+
+func TestStickyProgressLineFitsTerminalWidth(t *testing.T) {
+	line := stickyProgressLine(80, "Install", 1, 4)
+	if !strings.Contains(line, "Install") {
+		t.Fatalf("expected label in line %q", line)
+	}
+	if !strings.Contains(line, "25%") {
+		t.Fatalf("expected percent in line %q", line)
+	}
+}

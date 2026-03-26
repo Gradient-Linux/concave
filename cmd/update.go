@@ -36,10 +36,10 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	return runLockedOperation("update", 5*time.Minute, composeCleanup(name), func(ctx context.Context) error {
+	return runLockedOperation("update", 45*time.Minute, composeCleanup(name), func(ctx context.Context) error {
 		totalSteps := len(s.Containers) + 4
 		step := 0
-		ui.Progress("Update", step, totalSteps)
+		ui.Progress("Preparing update", step, totalSteps)
 
 		for _, container := range s.Containers {
 			current := ""
@@ -47,34 +47,36 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 				current = containers[container.Name].Current
 			}
 			ui.Info("Pulling", container.Image)
-			if err := dockerPullWithRollbackSafety(ctx, container.Image, nil); err != nil {
+			label := progressImageLabel(container.Image)
+			ui.Progress("Pulling "+label, step, totalSteps)
+			if err := dockerPullWithRollbackSafety(ctx, container.Image, ui.DockerPullReporter("Pulling "+label)); err != nil {
 				return wrapDockerError(err)
 			}
 			manifest = recordUpdate(manifest, s.Name, container.Name, container.Image)
 			ui.Info(container.Name, fmt.Sprintf("%s -> %s", current, container.Image))
 			step++
-			ui.Progress("Update", step, totalSteps)
+			ui.Progress("Pulled "+label, step, totalSteps)
 		}
 
 		if err := saveManifest(manifest); err != nil {
 			return err
 		}
 		step++
-		ui.Progress("Update", step, totalSteps)
+		ui.Progress("Saving version manifest", step, totalSteps)
 		if _, err := writeComposeForCurrentState(name); err != nil {
 			return wrapDockerError(err)
 		}
 		step++
-		ui.Progress("Update", step, totalSteps)
+		ui.Progress("Writing compose file", step, totalSteps)
 		if err := dockerComposeUp(ctx, dockerComposePath(name), true); err != nil {
 			return wrapDockerError(err)
 		}
 		step++
-		ui.Progress("Update", step, totalSteps)
+		ui.Progress("Starting updated services", step, totalSteps)
 		if err := waitForHealthy(ctx, s); err != nil {
 			return err
 		}
-		ui.Progress("Update", totalSteps, totalSteps)
+		ui.Progress("Update complete", totalSteps, totalSteps)
 
 		ui.Pass("Update", name)
 		return nil

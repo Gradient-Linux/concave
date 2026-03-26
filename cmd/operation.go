@@ -23,6 +23,7 @@ func runLockedOperation(subcommand string, timeout time.Duration, cleanup func()
 	if err != nil {
 		return wrapUserError(err)
 	}
+	defer ui.EndProgress()
 
 	runCleanup := func() {
 		unlock()

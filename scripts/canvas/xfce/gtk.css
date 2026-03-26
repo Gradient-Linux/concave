@@ -1,0 +1,32 @@
+@define-color gradient_deep #5B00A0;
+@define-color gradient_mid #D63CA0;
+@define-color gradient_gold #F5C842;
+@define-color gradient_ink #241337;
+@define-color gradient_surface #FFF9F1;
+@define-color gradient_surface_alt #F5EFFE;
+@define-color gradient_line #D8C6EA;
+window, dialog, .background {
+  background: @gradient_surface;
+  color: @gradient_ink;
+}
+headerbar, .titlebar {
+  background-image: linear-gradient(90deg, @gradient_deep, @gradient_mid);
+  color: #ffffff;
+}
+button.suggested-action, button.default {
+  background-image: linear-gradient(90deg, @gradient_deep, @gradient_mid);
+  color: #ffffff;
+  border-radius: 8px;
+  border: 1px solid alpha(@gradient_deep, 0.25);
+}
+button.flat, button {
+  border-radius: 8px;
+}
+entry, textview, .view {
+  border-radius: 8px;
+  border: 1px solid @gradient_line;
+}
+selection, .accent {
+  background: @gradient_gold;
+  color: @gradient_ink;
+}

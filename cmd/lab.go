@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"regexp"
 	"strings"
 	"time"
@@ -61,6 +62,11 @@ func runLab(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("resolve Jupyter token for %s: %w", container, err)
 	}
 
+	if url, ok := preferredGradientLabURL(); ok {
+		ui.Info("gradient-lab", "opening at "+url)
+		return systemOpenURL(url)
+	}
+
 	url, err := extractLabURL(string(out))
 	if err != nil {
 		return err
@@ -115,6 +121,15 @@ func extractLabURL(raw string) (string, error) {
 	match = strings.Replace(match, "localhost", "127.0.0.1", 1)
 	match = strings.Replace(match, "/?token=", "/lab?token=", 1)
 	return match, nil
+}
+
+func preferredGradientLabURL() (string, bool) {
+	conn, err := net.DialTimeout("tcp", "127.0.0.1:8889", 750*time.Millisecond)
+	if err != nil {
+		return "", false
+	}
+	_ = conn.Close()
+	return "http://127.0.0.1:8889/lab", true
 }
 
 func init() {

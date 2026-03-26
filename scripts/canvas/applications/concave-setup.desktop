@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Gradient Setup
+Comment=Run the first-boot Gradient Linux setup flow
+Exec=xfce4-terminal --title=Gradient\ Setup --command=concave\ setup
+Icon=applications-system
+Terminal=false
+Categories=System;Development;
+StartupNotify=true

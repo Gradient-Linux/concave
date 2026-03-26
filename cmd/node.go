@@ -35,7 +35,7 @@ var nodeStatusCmd = &cobra.Command{
 var nodeSetCmd = &cobra.Command{
 	Use:   "set",
 	Short: "Set node visibility",
-	RunE:  runScaffoldCommand,
+	RunE:  runNodeSet,
 }
 
 var fleetCmd = &cobra.Command{
@@ -74,9 +74,31 @@ func runNodeStatus(cmd *cobra.Command, args []string) error {
 	ui.Pass("Node", node.Hostname)
 	ui.Info("Visibility", string(node.Visibility))
 	ui.Info("Resolver", fmt.Sprintf("%t", node.ResolverRunning))
+	ui.Info("Baselines", fmt.Sprintf("%d", node.BaselineGroups))
+	ui.Info("Drifted groups", fmt.Sprintf("%d", node.DriftedGroups))
 	if len(node.InstalledSuites) > 0 {
 		ui.Info("Suites", strings.Join(node.InstalledSuites, ", "))
 	}
+	return nil
+}
+
+func runNodeSet(cmd *cobra.Command, args []string) error {
+	visibility := NodeVisibility(strings.ToLower(strings.TrimSpace(nodeVisibility)))
+	switch visibility {
+	case VisibilityPublic, VisibilityPrivate, VisibilityHidden:
+	default:
+		return fmt.Errorf("invalid visibility %q: expected public, private, or hidden", nodeVisibility)
+	}
+
+	applied, err := meshclient.SetVisibility("", meshclient.NodeVisibility(visibility))
+	if errors.Is(err, meshclient.ErrUnavailable) {
+		ui.Warn("Mesh", maximaNotImplementedMessage)
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	ui.Pass("Node visibility", string(applied.Visibility))
 	return nil
 }
 
@@ -95,7 +117,13 @@ func runFleetStatus(cmd *cobra.Command, args []string) error {
 	}
 	ui.Pass("Fleet", fmt.Sprintf("%d visible peers", len(peers)))
 	for _, peer := range peers {
-		ui.Info(peer.Hostname, fmt.Sprintf("%s · seen %s", peer.Visibility, peer.LastSeen.Format(time.RFC3339)))
+		detail := fmt.Sprintf("%s · baselines %d · drifted %d · seen %s",
+			peer.Visibility,
+			peer.BaselineGroups,
+			peer.DriftedGroups,
+			peer.LastSeen.Format(time.RFC3339),
+		)
+		ui.Info(peer.Hostname, detail)
 	}
 	return nil
 }

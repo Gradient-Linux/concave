@@ -54,6 +54,17 @@ type driftRequest struct {
 	Group string `json:"group"`
 }
 
+type baselineRequest struct {
+	Type  string `json:"type"`
+	Group string `json:"group"`
+}
+
+type applyBaselineRequest struct {
+	Type      string `json:"type"`
+	Group     string `json:"group"`
+	Timestamp string `json:"timestamp,omitempty"`
+}
+
 type response[T any] struct {
 	Type    string `json:"type"`
 	Payload T      `json:"payload"`
@@ -89,6 +100,62 @@ func QueryDrift(socketPath, group string) ([]DriftReport, error) {
 	}
 	if resp.Payload == nil {
 		return []DriftReport{}, nil
+	}
+	return resp.Payload, nil
+}
+
+// QueryBaseline returns the promoted baseline snapshot for one group.
+func QueryBaseline(socketPath, group string) (struct {
+	Group     string            `json:"group"`
+	Timestamp time.Time         `json:"timestamp"`
+	Packages  map[string]string `json:"packages"`
+	Backend   string            `json:"backend"`
+	MLflowIDs []string          `json:"mlflow_ids"`
+}, error) {
+	if socketPath == "" {
+		socketPath = DefaultSocketPath
+	}
+	type baselineSnapshot struct {
+		Group     string            `json:"group"`
+		Timestamp time.Time         `json:"timestamp"`
+		Packages  map[string]string `json:"packages"`
+		Backend   string            `json:"backend"`
+		MLflowIDs []string          `json:"mlflow_ids"`
+	}
+	var resp response[baselineSnapshot]
+	if err := query(socketPath, baselineRequest{Type: "baseline_get", Group: group}, &resp); err != nil {
+		return baselineSnapshot{}, err
+	}
+	if resp.Error != "" {
+		return baselineSnapshot{}, errors.New(resp.Error)
+	}
+	return resp.Payload, nil
+}
+
+// ApplyBaseline promotes the latest or selected snapshot to the baseline.
+func ApplyBaseline(socketPath, group, timestamp string) (struct {
+	Group     string            `json:"group"`
+	Timestamp time.Time         `json:"timestamp"`
+	Packages  map[string]string `json:"packages"`
+	Backend   string            `json:"backend"`
+	MLflowIDs []string          `json:"mlflow_ids"`
+}, error) {
+	if socketPath == "" {
+		socketPath = DefaultSocketPath
+	}
+	type baselineSnapshot struct {
+		Group     string            `json:"group"`
+		Timestamp time.Time         `json:"timestamp"`
+		Packages  map[string]string `json:"packages"`
+		Backend   string            `json:"backend"`
+		MLflowIDs []string          `json:"mlflow_ids"`
+	}
+	var resp response[baselineSnapshot]
+	if err := query(socketPath, applyBaselineRequest{Type: "baseline_set", Group: group, Timestamp: timestamp}, &resp); err != nil {
+		return baselineSnapshot{}, err
+	}
+	if resp.Error != "" {
+		return baselineSnapshot{}, errors.New(resp.Error)
 	}
 	return resp.Payload, nil
 }

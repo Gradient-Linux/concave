@@ -20,25 +20,26 @@ var (
 	ensureWorkspaceLayout = workspace.EnsureLayout
 	workspaceExists       = workspace.Exists
 	workspaceRoot         = workspace.Root
+	workspaceUserRoot     = workspace.UserRoot
 	workspaceStatus       = workspace.Status
 	workspaceBackup       = workspace.Backup
 	workspaceClean        = workspace.CleanOutputs
 
-	loadState       = config.LoadState
-	saveState       = config.SaveState
-	addSuite        = config.AddSuite
-	removeSuite     = config.RemoveSuite
-	isInstalled     = config.IsInstalled
-	loadManifest    = config.LoadManifest
-	saveManifest    = config.SaveManifest
-	loadSetupState  = config.LoadSetupState
-	saveSetupState  = config.SaveSetupState
-	markStepComplete = config.MarkStepComplete
+	loadState         = config.LoadState
+	saveState         = config.SaveState
+	addSuite          = config.AddSuite
+	removeSuite       = config.RemoveSuite
+	isInstalled       = config.IsInstalled
+	loadManifest      = config.LoadManifest
+	saveManifest      = config.SaveManifest
+	loadSetupState    = config.LoadSetupState
+	saveSetupState    = config.SaveSetupState
+	markStepComplete  = config.MarkStepComplete
 	markSetupComplete = config.MarkSetupComplete
-	isStepComplete = config.IsStepComplete
-	recordInstall   = config.RecordInstall
-	recordUpdate    = config.RecordUpdate
-	swapForRollback = config.SwapForRollback
+	isStepComplete    = config.IsStepComplete
+	recordInstall     = config.RecordInstall
+	recordUpdate      = config.RecordUpdate
+	swapForRollback   = config.SwapForRollback
 
 	getSuite                = suite.Get
 	allSuites               = suite.All
@@ -72,8 +73,11 @@ var (
 	gpuSecureBootEnabled       = gpu.SecureBootEnabled
 
 	systemDockerRunning     = system.DockerRunning
+	systemCommandAvailable  = system.CommandAvailable
+	systemDockerCompose     = system.DockerComposeAvailable
 	systemUserInDockerGroup = system.UserInDockerGroup
 	systemInternetReachable = system.InternetReachable
+	systemRunPrivileged     = system.RunPrivileged
 	systemCheckConflicts    = system.CheckConflicts
 	systemRegisterPorts     = system.Register
 	systemDeregisterPorts   = system.Deregister
@@ -81,6 +85,15 @@ var (
 	systemSignalHandler     = system.WithSignalHandler
 	systemLock              = system.Lock
 	uiConfirm               = ui.Confirm
+	currentUsername         = func() string {
+		if value := os.Getenv("SUDO_USER"); value != "" {
+			return value
+		}
+		if value := os.Getenv("USER"); value != "" {
+			return value
+		}
+		return "unknown"
+	}
 
 	runDockerOutput = func(ctx context.Context, args ...string) ([]byte, error) {
 		return exec.CommandContext(ctx, "docker", args...).CombinedOutput()

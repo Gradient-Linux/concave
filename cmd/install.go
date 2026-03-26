@@ -21,12 +21,19 @@ var installCmd = &cobra.Command{
 }
 
 func runInstall(cmd *cobra.Command, args []string) error {
+	if _, err := getSuite(args[0]); err != nil {
+		return err
+	}
+
 	state, err := gpuDetectState()
 	if err != nil {
 		return err
 	}
 
-	return runLockedOperation("install", 5*time.Minute, composeCleanup(args[0]), func(ctx context.Context) error {
+	return runLockedOperation("install", 45*time.Minute, composeCleanup(args[0]), func(ctx context.Context) error {
+		if err := ensureDockerRuntime(ctx, "install "+args[0]); err != nil {
+			return err
+		}
 		err := installSuite(ctx, args[0], suite.InstallOptions{
 			GPUAvailable: state == gpu.GPUStateNVIDIA,
 			Force:        installForce,

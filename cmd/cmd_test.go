@@ -8,8 +8,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -21,6 +21,7 @@ import (
 	"github.com/Gradient-Linux/concave/internal/gpu"
 	"github.com/Gradient-Linux/concave/internal/suite"
 	"github.com/Gradient-Linux/concave/internal/ui"
+	"github.com/Gradient-Linux/concave/internal/workspace"
 	"github.com/spf13/cobra"
 )
 
@@ -31,6 +32,12 @@ type mockExitError struct {
 func (m mockExitError) Error() string { return fmt.Sprintf("exit %d", m.code) }
 func (m mockExitError) ExitCode() int { return m.code }
 
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (fn roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return fn(req)
+}
+
 func restoreCommandDeps(t *testing.T) {
 	t.Helper()
 
@@ -40,6 +47,7 @@ func restoreCommandDeps(t *testing.T) {
 	oldEnsureWorkspaceLayout := ensureWorkspaceLayout
 	oldWorkspaceExists := workspaceExists
 	oldWorkspaceRoot := workspaceRoot
+	oldWorkspaceUserRoot := workspaceUserRoot
 	oldWorkspaceStatus := workspaceStatus
 	oldWorkspaceBackup := workspaceBackup
 	oldWorkspaceClean := workspaceClean
@@ -85,8 +93,11 @@ func restoreCommandDeps(t *testing.T) {
 	oldGPUVerifyPassthrough := gpuVerifyPassthrough
 	oldGPUSecureBootEnabled := gpuSecureBootEnabled
 	oldSystemDockerRunning := systemDockerRunning
+	oldSystemCommandAvailable := systemCommandAvailable
+	oldSystemDockerCompose := systemDockerCompose
 	oldSystemUserInDockerGroup := systemUserInDockerGroup
 	oldSystemInternetReachable := systemInternetReachable
+	oldSystemRunPrivileged := systemRunPrivileged
 	oldSystemCheckConflicts := systemCheckConflicts
 	oldSystemRegisterPorts := systemRegisterPorts
 	oldSystemDeregisterPorts := systemDeregisterPorts
@@ -94,6 +105,7 @@ func restoreCommandDeps(t *testing.T) {
 	oldSystemSignalHandler := systemSignalHandler
 	oldSystemLock := systemLock
 	oldUIConfirm := uiConfirm
+	oldCurrentUsername := currentUsername
 	oldRunDockerOutput := runDockerOutput
 	oldRunDockerInteractive := runDockerInteractive
 	oldLabSuite := labSuite
@@ -108,6 +120,7 @@ func restoreCommandDeps(t *testing.T) {
 		ensureWorkspaceLayout = oldEnsureWorkspaceLayout
 		workspaceExists = oldWorkspaceExists
 		workspaceRoot = oldWorkspaceRoot
+		workspaceUserRoot = oldWorkspaceUserRoot
 		workspaceStatus = oldWorkspaceStatus
 		workspaceBackup = oldWorkspaceBackup
 		workspaceClean = oldWorkspaceClean
@@ -153,8 +166,11 @@ func restoreCommandDeps(t *testing.T) {
 		gpuVerifyPassthrough = oldGPUVerifyPassthrough
 		gpuSecureBootEnabled = oldGPUSecureBootEnabled
 		systemDockerRunning = oldSystemDockerRunning
+		systemCommandAvailable = oldSystemCommandAvailable
+		systemDockerCompose = oldSystemDockerCompose
 		systemUserInDockerGroup = oldSystemUserInDockerGroup
 		systemInternetReachable = oldSystemInternetReachable
+		systemRunPrivileged = oldSystemRunPrivileged
 		systemCheckConflicts = oldSystemCheckConflicts
 		systemRegisterPorts = oldSystemRegisterPorts
 		systemDeregisterPorts = oldSystemDeregisterPorts
@@ -162,6 +178,7 @@ func restoreCommandDeps(t *testing.T) {
 		systemSignalHandler = oldSystemSignalHandler
 		systemLock = oldSystemLock
 		uiConfirm = oldUIConfirm
+		currentUsername = oldCurrentUsername
 		runDockerOutput = oldRunDockerOutput
 		runDockerInteractive = oldRunDockerInteractive
 		labSuite = oldLabSuite
@@ -250,15 +267,85 @@ func TestResolveExitCodeFindsWrappedExitErrors(t *testing.T) {
 func TestInstallInvalidSuite(t *testing.T) {
 	restoreCommandDeps(t)
 
-	gpuDetectState = func() (gpu.GPUState, error) { return gpu.GPUStateNone, nil }
-	installSuite = func(ctx context.Context, name string, opts suite.InstallOptions) error {
-		_, err := suite.Get(name)
-		return err
-	}
-
 	err := runInstall(installCmd, []string{"invalid"})
 	if err == nil || err.Error() != "unknown suite: invalid. Valid suites: boosting, neural, flow, forge" {
 		t.Fatalf("runInstall() error = %v", err)
+	}
+}
+
+func TestEnsureDockerRuntimeInstallsAndStartsDocker(t *testing.T) {
+	restoreCommandDeps(t)
+
+	dockerInstalled := false
+	dockerRunning := false
+
+	systemCommandAvailable = func(name string) bool {
+		return name == "docker" && dockerInstalled
+	}
+	systemDockerCompose = func() (bool, error) {
+		if !dockerInstalled {
+			return false, nil
+		}
+		return true, nil
+	}
+	systemDockerRunning = func() (bool, error) {
+		if !dockerInstalled {
+			return false, errors.New("docker info: exec: \"docker\": executable file not found in $PATH")
+		}
+		return dockerRunning, nil
+	}
+	systemUserInDockerGroup = func() (bool, error) { return true, nil }
+	uiConfirm = func(question string) bool { return true }
+
+	var privileged [][]string
+	systemRunPrivileged = func(ctx context.Context, description string, name string, args ...string) error {
+		privileged = append(privileged, append([]string{name}, args...))
+		if len(args) >= 4 && name == "env" && args[1] == "apt-get" && args[2] == "install" {
+			dockerInstalled = true
+		}
+		if name == "systemctl" {
+			dockerRunning = true
+		}
+		return nil
+	}
+
+	if err := ensureDockerRuntime(context.Background(), "install neural"); err != nil {
+		t.Fatalf("ensureDockerRuntime() error = %v", err)
+	}
+
+	if !dockerInstalled || !dockerRunning {
+		t.Fatalf("expected docker to be installed and running, got installed=%v running=%v", dockerInstalled, dockerRunning)
+	}
+	if len(privileged) < 2 {
+		t.Fatalf("expected privileged install/start calls, got %#v", privileged)
+	}
+}
+
+func TestEnsureDockerRuntimeRequestsReloginAfterDockerGroupAdd(t *testing.T) {
+	restoreCommandDeps(t)
+
+	systemCommandAvailable = func(name string) bool { return name == "docker" }
+	systemDockerCompose = func() (bool, error) { return true, nil }
+	systemDockerRunning = func() (bool, error) { return true, nil }
+	systemUserInDockerGroup = func() (bool, error) { return false, nil }
+	uiConfirm = func(question string) bool { return true }
+	currentUsername = func() string { return "mark" }
+
+	var got []string
+	systemRunPrivileged = func(ctx context.Context, description string, name string, args ...string) error {
+		got = append([]string{name}, args...)
+		return nil
+	}
+
+	err := ensureDockerRuntime(context.Background(), "install neural")
+	if err == nil {
+		t.Fatal("expected relogin error")
+	}
+	if !strings.Contains(err.Error(), "log out and back in") {
+		t.Fatalf("expected relogin guidance, got %v", err)
+	}
+	if strings.Join(got, " ") != "usermod -aG docker mark" {
+		t.Fatalf("unexpected privileged call %#v", got)
 	}
 }
 
@@ -529,6 +616,10 @@ func TestDoctorAndWorkspaceCommandsStillWork(t *testing.T) {
 
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	workspaceUserRoot = func() string { return filepath.Join(home, "gradient") }
+	ensureWorkspaceLayout = func() error {
+		return os.MkdirAll(filepath.Join(home, "gradient"), 0o755)
+	}
 	if err := workspaceInitCmd.RunE(workspaceInitCmd, nil); err != nil {
 		t.Fatalf("workspaceInitCmd.RunE() error = %v", err)
 	}
@@ -537,6 +628,87 @@ func TestDoctorAndWorkspaceCommandsStillWork(t *testing.T) {
 	}
 	if !strings.Contains(buf.String(), "Docker") {
 		t.Fatalf("expected doctor output, got %q", buf.String())
+	}
+}
+
+func TestWorkspaceCommandsPreferUserWorkspaceRoot(t *testing.T) {
+	restoreCommandDeps(t)
+
+	home := t.TempDir()
+	expected := filepath.Join(home, "gradient")
+	t.Setenv("HOME", home)
+	t.Setenv("GRADIENT_WORKSPACE_ROOT", "/var/lib/gradient")
+
+	workspaceUserRoot = func() string { return expected }
+	ensureWorkspaceLayout = func() error {
+		if got := os.Getenv("GRADIENT_WORKSPACE_ROOT"); got != expected {
+			t.Fatalf("GRADIENT_WORKSPACE_ROOT = %q, want %q", got, expected)
+		}
+		return nil
+	}
+	workspaceStatus = func() ([]workspace.Usage, error) {
+		if got := os.Getenv("GRADIENT_WORKSPACE_ROOT"); got != expected {
+			t.Fatalf("GRADIENT_WORKSPACE_ROOT = %q, want %q", got, expected)
+		}
+		return []workspace.Usage{{Name: "data", Bytes: 1}}, nil
+	}
+	workspaceBackup = func() (string, error) {
+		if got := os.Getenv("GRADIENT_WORKSPACE_ROOT"); got != expected {
+			t.Fatalf("GRADIENT_WORKSPACE_ROOT = %q, want %q", got, expected)
+		}
+		return filepath.Join(expected, "backups", "archive.tar.gz"), nil
+	}
+	workspaceClean = func() error {
+		if got := os.Getenv("GRADIENT_WORKSPACE_ROOT"); got != expected {
+			t.Fatalf("GRADIENT_WORKSPACE_ROOT = %q, want %q", got, expected)
+		}
+		return nil
+	}
+	workspaceRoot = func() string {
+		return os.Getenv("GRADIENT_WORKSPACE_ROOT")
+	}
+
+	if err := workspaceInitCmd.RunE(workspaceInitCmd, nil); err != nil {
+		t.Fatalf("workspaceInitCmd.RunE() error = %v", err)
+	}
+	if err := workspaceStatusCmd.RunE(workspaceStatusCmd, nil); err != nil {
+		t.Fatalf("workspaceStatusCmd.RunE() error = %v", err)
+	}
+	if err := workspaceBackupCmd.RunE(workspaceBackupCmd, nil); err != nil {
+		t.Fatalf("workspaceBackupCmd.RunE() error = %v", err)
+	}
+	workspacePruneOutputs = true
+	defer func() { workspacePruneOutputs = false }()
+	if err := workspacePruneCmd.RunE(workspacePruneCmd, nil); err != nil {
+		t.Fatalf("workspacePruneCmd.RunE() error = %v", err)
+	}
+
+	if got := os.Getenv("GRADIENT_WORKSPACE_ROOT"); got != "/var/lib/gradient" {
+		t.Fatalf("GRADIENT_WORKSPACE_ROOT after command = %q, want %q", got, "/var/lib/gradient")
+	}
+}
+
+func TestConfigureDefaultWorkspaceRoot(t *testing.T) {
+	restoreCommandDeps(t)
+
+	workspaceUserRoot = func() string { return "/tmp/user-gradient" }
+
+	_ = os.Unsetenv("GRADIENT_WORKSPACE_ROOT")
+	configureDefaultWorkspaceRoot(statusCmd)
+	if got := os.Getenv("GRADIENT_WORKSPACE_ROOT"); got != "/tmp/user-gradient" {
+		t.Fatalf("GRADIENT_WORKSPACE_ROOT = %q, want %q", got, "/tmp/user-gradient")
+	}
+
+	_ = os.Unsetenv("GRADIENT_WORKSPACE_ROOT")
+	configureDefaultWorkspaceRoot(serveCmd)
+	if got, ok := os.LookupEnv("GRADIENT_WORKSPACE_ROOT"); ok {
+		t.Fatalf("GRADIENT_WORKSPACE_ROOT unexpectedly set for serve: %q", got)
+	}
+
+	_ = os.Setenv("GRADIENT_WORKSPACE_ROOT", "/explicit/root")
+	configureDefaultWorkspaceRoot(statusCmd)
+	if got := os.Getenv("GRADIENT_WORKSPACE_ROOT"); got != "/explicit/root" {
+		t.Fatalf("explicit GRADIENT_WORKSPACE_ROOT overwritten: %q", got)
 	}
 }
 
@@ -617,6 +789,7 @@ func TestRemoveStopRestartAndShellCommands(t *testing.T) {
 		}
 		return nil
 	}
+	runDockerOutput = func(ctx context.Context, args ...string) ([]byte, error) { return nil, nil }
 	dockerComposeDown = func(ctx context.Context, path string) error { return nil }
 	dockerComposeUp = func(ctx context.Context, path string, detach bool) error { return nil }
 
@@ -738,7 +911,13 @@ func TestDriverWizardSetupAndSelfUpdate(t *testing.T) {
 	}
 
 	ensureWorkspaceLayout = func() error { return nil }
-	workspaceRoot = func() string { return t.TempDir() }
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	workspaceRoot = func() string { return home }
+	systemCommandAvailable = func(name string) bool { return name == "docker" }
+	systemDockerCompose = func() (bool, error) { return true, nil }
+	systemDockerRunning = func() (bool, error) { return true, nil }
+	systemUserInDockerGroup = func() (bool, error) { return true, nil }
 	gpuDetectState = func() (gpu.GPUState, error) { return gpu.GPUStateNone, nil }
 	installed := []string{}
 	isInstalled = func(name string) (bool, error) {
@@ -771,25 +950,41 @@ func TestDriverWizardSetupAndSelfUpdate(t *testing.T) {
 
 	binary := []byte("concave-binary")
 	sum := sha256.Sum256(binary)
-	var server *httptest.Server
-	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/manifest":
-			_ = json.NewEncoder(w).Encode(updateManifest{
-				Version: "v0.1.0",
-				URL:     server.URL + "/concave",
-				SHA256:  hex.EncodeToString(sum[:]),
-			})
-		case "/concave":
-			_, _ = w.Write(binary)
-		default:
-			http.NotFound(w, r)
-		}
-	}))
-	defer server.Close()
-
-	selfUpdateClient = server.Client()
-	selfUpdateManifestURL = server.URL + "/manifest"
+	const manifestURL = "https://updates.example.test/manifest"
+	const binaryURL = "https://updates.example.test/concave"
+	selfUpdateClient = &http.Client{
+		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			switch req.URL.String() {
+			case manifestURL:
+				payload, err := json.Marshal(updateManifest{
+					Version: "v0.1.0",
+					URL:     binaryURL,
+					SHA256:  hex.EncodeToString(sum[:]),
+				})
+				if err != nil {
+					return nil, err
+				}
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Body:       io.NopCloser(strings.NewReader(string(payload))),
+					Header:     make(http.Header),
+				}, nil
+			case binaryURL:
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Body:       io.NopCloser(strings.NewReader(string(binary))),
+					Header:     make(http.Header),
+				}, nil
+			default:
+				return &http.Response{
+					StatusCode: http.StatusNotFound,
+					Body:       io.NopCloser(strings.NewReader("not found")),
+					Header:     make(http.Header),
+				}, nil
+			}
+		}),
+	}
+	selfUpdateManifestURL = manifestURL
 	selfUpdateTargetPath = filepath.Join(t.TempDir(), "concave")
 	if err := selfUpdateCmd.RunE(selfUpdateCmd, nil); err != nil {
 		t.Fatalf("selfUpdateCmd.RunE() error = %v", err)

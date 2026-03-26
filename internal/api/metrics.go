@@ -26,33 +26,73 @@ type memorySnapshot struct {
 	SwapTotal uint64 `json:"swap_total"`
 }
 
+type cpuCoreMetric struct {
+	Name        string  `json:"name"`
+	Utilization float64 `json:"utilization"`
+}
+
+type cpuMetricsPayload struct {
+	Overall float64         `json:"overall,omitempty"`
+	Cores   []cpuCoreMetric `json:"cores,omitempty"`
+	Error   string          `json:"error,omitempty"`
+}
+
+type memoryMetricsPayload struct {
+	Used      uint64 `json:"used,omitempty"`
+	Total     uint64 `json:"total,omitempty"`
+	SwapUsed  uint64 `json:"swap_used,omitempty"`
+	SwapTotal uint64 `json:"swap_total,omitempty"`
+	Error     string `json:"error,omitempty"`
+}
+
+type gpuDeviceMetric struct {
+	Name        string  `json:"name"`
+	Utilization float64 `json:"utilization"`
+	MemoryUsed  int64   `json:"memory_used"`
+	MemoryTotal int64   `json:"memory_total"`
+}
+
+type gpuMetricsPayload struct {
+	Devices []gpuDeviceMetric `json:"devices,omitempty"`
+	Error   string            `json:"error,omitempty"`
+}
+
+type metricsPayload struct {
+	Workspace any                  `json:"workspace"`
+	Suites    []suiteSummary       `json:"suites"`
+	CPU       cpuMetricsPayload    `json:"cpu"`
+	GPU       gpuMetricsPayload    `json:"gpu"`
+	Memory    memoryMetricsPayload `json:"memory"`
+	Timestamp string               `json:"timestamp"`
+}
+
 var hostCPUSampler = &cpuSampler{prev: map[string]cpuCounter{}}
 
-func cpuMetrics() map[string]any {
+func cpuMetrics() cpuMetricsPayload {
 	overall, cores, err := hostCPUSampler.sample()
 	if err != nil {
-		return map[string]any{"error": err.Error()}
+		return cpuMetricsPayload{Error: err.Error()}
 	}
-	return map[string]any{
-		"overall": overall,
-		"cores":   cores,
+	return cpuMetricsPayload{
+		Overall: overall,
+		Cores:   cores,
 	}
 }
 
-func memoryMetrics() map[string]any {
+func memoryMetrics() memoryMetricsPayload {
 	snapshot, err := readMemorySnapshot()
 	if err != nil {
-		return map[string]any{"error": err.Error()}
+		return memoryMetricsPayload{Error: err.Error()}
 	}
-	return map[string]any{
-		"used":       snapshot.Used,
-		"total":      snapshot.Total,
-		"swap_used":  snapshot.SwapUsed,
-		"swap_total": snapshot.SwapTotal,
+	return memoryMetricsPayload{
+		Used:      snapshot.Used,
+		Total:     snapshot.Total,
+		SwapUsed:  snapshot.SwapUsed,
+		SwapTotal: snapshot.SwapTotal,
 	}
 }
 
-func (s *cpuSampler) sample() (float64, []map[string]any, error) {
+func (s *cpuSampler) sample() (float64, []cpuCoreMetric, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -87,7 +127,7 @@ func (s *cpuSampler) sample() (float64, []map[string]any, error) {
 	}
 
 	overall := 0.0
-	cores := make([]map[string]any, 0, max(0, len(order)-1))
+	cores := make([]cpuCoreMetric, 0, max(0, len(order)-1))
 	for _, name := range order {
 		counter := current[name]
 		prev, ok := s.prev[name]
@@ -103,10 +143,7 @@ func (s *cpuSampler) sample() (float64, []map[string]any, error) {
 			overall = usage
 			continue
 		}
-		cores = append(cores, map[string]any{
-			"name":        name,
-			"utilization": usage,
-		})
+		cores = append(cores, cpuCoreMetric{Name: name, Utilization: usage})
 	}
 
 	s.prev = current

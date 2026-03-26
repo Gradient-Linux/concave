@@ -26,12 +26,16 @@ type NodeInfo struct {
 	Visibility      NodeVisibility `json:"visibility"`
 	InstalledSuites []string       `json:"installed_suites"`
 	ResolverRunning bool           `json:"resolver_running"`
+	BaselineGroups  int            `json:"baseline_groups"`
+	DriftedGroups   int            `json:"drifted_groups"`
+	BaselineUpdated time.Time      `json:"baseline_updated_at"`
 	LastSeen        time.Time      `json:"last_seen"`
 	Address         string         `json:"address"`
 }
 
 type request struct {
-	Action string `json:"action"`
+	Action     string `json:"action"`
+	Visibility string `json:"visibility,omitempty"`
 }
 
 type response struct {
@@ -68,6 +72,21 @@ func QueryFleet(socketPath string) ([]NodeInfo, error) {
 		return []NodeInfo{}, nil
 	}
 	return resp.Peers, nil
+}
+
+// SetVisibility updates the local mesh visibility and returns the applied node snapshot.
+func SetVisibility(socketPath string, visibility NodeVisibility) (NodeInfo, error) {
+	if socketPath == "" {
+		socketPath = DefaultSocketPath
+	}
+	resp, err := query(socketPath, request{Action: "set_visibility", Visibility: string(visibility)})
+	if err != nil {
+		return NodeInfo{}, err
+	}
+	if resp.Self == nil {
+		return NodeInfo{}, nil
+	}
+	return *resp.Self, nil
 }
 
 func query(socketPath string, req request) (response, error) {
