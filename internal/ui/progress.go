@@ -64,6 +64,7 @@ func beginProgressLocked() bool {
 	if !progressSupportedLocked() {
 		return false
 	}
+	clearScreenLocked()
 	stickyProgress.active = true
 	clearReservedProgressRowsLocked()
 	_, _ = fmt.Fprintf(output, "\x1b[1;%dr", stickyProgress.rows-2)
@@ -127,6 +128,10 @@ func clearReservedProgressRowsLocked() {
 		return
 	}
 	_, _ = fmt.Fprintf(output, "\x1b[s\x1b[%d;1H\x1b[2K\x1b[%d;1H\x1b[2K\x1b[u", stickyProgress.rows-1, stickyProgress.rows)
+}
+
+func clearScreenLocked() {
+	_, _ = fmt.Fprint(output, "\x1b[2J\x1b[H")
 }
 
 func stickyProgressLine(cols int, message string, current, total int) string {
