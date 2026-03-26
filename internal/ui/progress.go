@@ -64,10 +64,8 @@ func beginProgressLocked() bool {
 	if !progressSupportedLocked() {
 		return false
 	}
-	clearScreenLocked()
 	stickyProgress.active = true
-	clearReservedProgressRowsLocked()
-	_, _ = fmt.Fprintf(output, "\x1b[1;%dr", stickyProgress.rows-2)
+	reserveProgressRowLocked(true)
 	return true
 }
 
@@ -75,9 +73,8 @@ func endProgressLocked() {
 	if !stickyProgress.active {
 		return
 	}
-	_, _ = fmt.Fprint(output, "\x1b[r")
 	clearReservedProgressRowsLocked()
-	_, _ = fmt.Fprintf(output, "\x1b[%d;1H", stickyProgress.rows-1)
+	_, _ = fmt.Fprintf(output, "\x1b[s\x1b[1;%dr\x1b[u", stickyProgress.rows)
 	stickyProgress = stickyProgressState{}
 }
 
@@ -101,9 +98,7 @@ func printStickyProgressLocked(message string, current, total int) {
 		if rows, cols, ok := terminalSize(file); ok {
 			if rows != stickyProgress.rows {
 				stickyProgress.rows = rows
-				_, _ = fmt.Fprint(output, "\x1b[r")
-				clearReservedProgressRowsLocked()
-				_, _ = fmt.Fprintf(output, "\x1b[1;%dr", stickyProgress.rows-2)
+				reserveProgressRowLocked(false)
 			}
 			stickyProgress.cols = cols
 		}
@@ -124,14 +119,21 @@ func renderProgressLocked() {
 }
 
 func clearReservedProgressRowsLocked() {
+	if stickyProgress.rows <= 0 {
+		return
+	}
+	_, _ = fmt.Fprintf(output, "\x1b[s\x1b[%d;1H\x1b[2K\x1b[u", stickyProgress.rows)
+}
+
+func reserveProgressRowLocked(pushTerminal bool) {
 	if stickyProgress.rows <= 1 {
 		return
 	}
-	_, _ = fmt.Fprintf(output, "\x1b[s\x1b[%d;1H\x1b[2K\x1b[%d;1H\x1b[2K\x1b[u", stickyProgress.rows-1, stickyProgress.rows)
-}
-
-func clearScreenLocked() {
-	_, _ = fmt.Fprint(output, "\x1b[2J\x1b[H")
+	if pushTerminal {
+		_, _ = fmt.Fprint(output, "\n\x1b[1A")
+	}
+	_, _ = fmt.Fprintf(output, "\x1b[s\x1b[1;%dr\x1b[u", stickyProgress.rows-1)
+	clearReservedProgressRowsLocked()
 }
 
 func stickyProgressLine(cols int, message string, current, total int) string {
