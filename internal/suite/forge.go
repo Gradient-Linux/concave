@@ -3,10 +3,10 @@ package suite
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"runtime"
 	"strings"
 
+	"github.com/Gradient-Linux/concave/internal/templatepath"
 	"github.com/Gradient-Linux/concave/internal/ui"
 )
 
@@ -356,19 +356,14 @@ func applyContainerImageOverride(container Container, overrides map[string]strin
 }
 
 func readForgeTemplate() ([]byte, error) {
-	candidates := []string{filepath.Join("templates", "forge.compose.yml")}
-
+	callerFile := ""
 	if _, sourceFile, _, ok := runtime.Caller(0); ok {
-		repoRoot := filepath.Clean(filepath.Join(filepath.Dir(sourceFile), "..", ".."))
-		candidates = append(candidates, filepath.Join(repoRoot, "templates", "forge.compose.yml"))
+		callerFile = sourceFile
 	}
-
-	if executable, err := os.Executable(); err == nil {
-		candidates = append(candidates, filepath.Join(filepath.Dir(executable), "templates", "forge.compose.yml"))
-	}
+	candidates := templatepath.Candidates("forge.compose.yml", callerFile)
 
 	var failures []string
-	for _, candidate := range uniqueForgePaths(candidates) {
+	for _, candidate := range candidates {
 		data, err := os.ReadFile(candidate)
 		if err == nil {
 			return data, nil
@@ -377,17 +372,4 @@ func readForgeTemplate() ([]byte, error) {
 	}
 
 	return nil, fmt.Errorf("read forge.compose.yml: %s", strings.Join(failures, "; "))
-}
-
-func uniqueForgePaths(items []string) []string {
-	seen := make(map[string]struct{}, len(items))
-	result := make([]string, 0, len(items))
-	for _, item := range items {
-		if _, ok := seen[item]; ok {
-			continue
-		}
-		seen[item] = struct{}{}
-		result = append(result, item)
-	}
-	return result
 }

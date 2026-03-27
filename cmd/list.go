@@ -46,7 +46,7 @@ func runList(cmd *cobra.Command, args []string) error {
 			if err != nil {
 				return err
 			}
-			status, err = dockerContainerStatus(ctx, primaryContainer(s))
+			status, err = composePrimaryStatus(ctx, s)
 			if err != nil {
 				status = "error"
 			}

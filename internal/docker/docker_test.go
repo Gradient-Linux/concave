@@ -118,6 +118,52 @@ func TestContainerStatusNormalizesStates(t *testing.T) {
 	}
 }
 
+func TestComposeServiceHelpers(t *testing.T) {
+	oldRunner := commandRunner
+	oldInteractive := runInteractiveCommand
+	t.Cleanup(func() {
+		commandRunner = oldRunner
+		runInteractiveCommand = oldInteractive
+	})
+
+	var calls []string
+	commandRunner = mockRunner{run: func(ctx context.Context, name string, args ...string) ([]byte, error) {
+		calls = append(calls, strings.Join(args, " "))
+		switch {
+		case strings.Join(args, " ") == "compose -f /tmp/demo.yml ps -q gradient-boost-lab":
+			return []byte("abc123\n"), nil
+		case strings.Join(args, " ") == "inspect -f {{.State.Status}} abc123":
+			return []byte("running\n"), nil
+		case strings.Join(args, " ") == "compose -f /tmp/demo.yml exec -T gradient-boost-lab jupyter server list --json":
+			return []byte("{\"token\":\"abc\"}\n"), nil
+		default:
+			return []byte("ok"), nil
+		}
+	}}
+	runInteractiveCommand = func(ctx context.Context, name string, args ...string) error {
+		calls = append(calls, strings.Join(args, " "))
+		return nil
+	}
+
+	status, err := ComposeServiceStatus(context.Background(), "/tmp/demo.yml", "gradient-boost-lab")
+	if err != nil {
+		t.Fatalf("ComposeServiceStatus() error = %v", err)
+	}
+	if status != "running" {
+		t.Fatalf("ComposeServiceStatus() = %q", status)
+	}
+	out, err := ComposeExecOutput(context.Background(), "/tmp/demo.yml", "gradient-boost-lab", "jupyter", "server", "list", "--json")
+	if err != nil {
+		t.Fatalf("ComposeExecOutput() error = %v", err)
+	}
+	if string(out) == "" {
+		t.Fatal("expected output from ComposeExecOutput")
+	}
+	if err := ComposeExecInteractive(context.Background(), "/tmp/demo.yml", "gradient-boost-lab", "bash"); err != nil {
+		t.Fatalf("ComposeExecInteractive() error = %v", err)
+	}
+}
+
 func TestWriteComposeUsesManifestOverrides(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	if err := workspace.EnsureLayout(); err != nil {

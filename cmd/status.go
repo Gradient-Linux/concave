@@ -45,7 +45,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 			return err
 		}
 		for idx, container := range s.Containers {
-			status, err := dockerContainerStatus(ctx, container.Name)
+			status, err := composeServiceStatus(ctx, s, container.Name)
 			if err != nil {
 				status = "error"
 			}

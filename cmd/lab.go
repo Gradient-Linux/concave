@@ -49,7 +49,8 @@ func runLab(cmd *cobra.Command, args []string) error {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
-	status, err := dockerContainerStatus(ctx, container)
+	composePath := dockerComposePath(name)
+	status, err := dockerComposeServiceStatus(ctx, composePath, container)
 	if err != nil {
 		return err
 	}
@@ -57,7 +58,7 @@ func runLab(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("JupyterLab is not running. Start it with: concave start %s", name)
 	}
 
-	out, err := runDockerOutput(ctx, "exec", container, "jupyter", "server", "list", "--json")
+	out, err := dockerComposeExecOutput(ctx, composePath, container, "jupyter", "server", "list", "--json")
 	if err != nil {
 		return fmt.Errorf("resolve Jupyter token for %s: %w", container, err)
 	}

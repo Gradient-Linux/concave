@@ -18,9 +18,11 @@ GPU inspection, and rollback metadata.
    support.
 2. `concave workspace init` creates the canonical `~/gradient/` tree.
 3. The suite registry defines containers, ports, mounts, and GPU requirements.
-4. `internal/docker/compose.go` reads a suite template from `templates/`, substitutes
-   `{{WORKSPACE_ROOT}}` and `{{COMPOSE_NETWORK}}`, and writes the rendered Compose file
-   into `~/gradient/compose/`.
+4. `internal/docker/compose.go` reads a suite template from the source-tree
+   `templates/` directory during development or from the packaged runtime path
+   `/usr/local/share/concave/templates/`, substitutes `{{WORKSPACE_ROOT}}` and
+   `{{COMPOSE_NETWORK}}`, and writes the rendered Compose file into
+   `~/gradient/compose/`.
 5. Docker image pulls and `docker compose` lifecycle actions are executed through the
    `internal/docker/` package, with retry/backoff reserved for pull-like operations.
 6. Installed suite state and image version history are recorded in

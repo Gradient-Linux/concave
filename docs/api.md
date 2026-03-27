@@ -51,7 +51,8 @@ The packaged deployment runs:
 
 The packaged postinstall also creates the auth groups, writes the service
 environment file, provisions the sudoers rule for tightly-scoped privileged
-operations, and prepares `/var/lib/gradient/`.
+operations, installs the runtime suite templates under
+`/usr/local/share/concave/templates/`, and prepares `/var/lib/gradient/`.
 
 See [system-admin.md](system-admin.md) for the deployment details.
 

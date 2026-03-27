@@ -32,6 +32,10 @@ archives:
       - LICENSE
       - README.md
       - CHANGELOG.md
+      - templates/boosting.compose.yml
+      - templates/neural.compose.yml
+      - templates/flow.compose.yml
+      - templates/forge.compose.yml
       - scripts/completions/concave.bash
       - scripts/completions/concave.zsh
       - scripts/completions/concave.fish
@@ -76,6 +80,14 @@ nfpms:
         dst: /usr/local/libexec/concave-host-shell
         file_info:
           mode: 0755
+      - src: templates/boosting.compose.yml
+        dst: /usr/local/share/concave/templates/boosting.compose.yml
+      - src: templates/neural.compose.yml
+        dst: /usr/local/share/concave/templates/neural.compose.yml
+      - src: templates/flow.compose.yml
+        dst: /usr/local/share/concave/templates/flow.compose.yml
+      - src: templates/forge.compose.yml
+        dst: /usr/local/share/concave/templates/forge.compose.yml
     scripts:
       postinstall: scripts/postinstall.sh
     dependencies:

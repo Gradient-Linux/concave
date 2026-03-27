@@ -29,7 +29,8 @@ func runShell(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	container := primaryContainer(s)
-	status, err := dockerContainerStatus(context.Background(), container)
+	composePath := dockerComposePath(name)
+	status, err := dockerComposeServiceStatus(context.Background(), composePath, container)
 	if err != nil {
 		return err
 	}
@@ -37,10 +38,10 @@ func runShell(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("suite %s is not running. Run: concave start %s", name, name)
 	}
 
-	if err := runDockerInteractive(context.Background(), "exec", "-it", container, "bash"); err == nil {
+	if err := dockerComposeExecInteractive(context.Background(), composePath, container, "bash"); err == nil {
 		return nil
 	}
-	if err := runDockerInteractive(context.Background(), "exec", "-it", container, "sh"); err != nil {
+	if err := dockerComposeExecInteractive(context.Background(), composePath, container, "sh"); err != nil {
 		return fmt.Errorf("docker exec shell %s: %w", container, err)
 	}
 	return nil

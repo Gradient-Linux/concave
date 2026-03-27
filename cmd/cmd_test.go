@@ -83,6 +83,9 @@ func restoreCommandDeps(t *testing.T) {
 	oldDockerComposeUp := dockerComposeUp
 	oldDockerComposeDown := dockerComposeDown
 	oldDockerContainerStatus := dockerContainerStatus
+	oldDockerComposeServiceStatus := dockerComposeServiceStatus
+	oldDockerComposeExecOutput := dockerComposeExecOutput
+	oldDockerComposeExecInteractive := dockerComposeExecInteractive
 	oldDockerContainerLogs := dockerContainerLogs
 	oldDockerExecCommand := dockerExecCommand
 	oldDockerRevertToPrevious := dockerRevertToPrevious
@@ -156,6 +159,9 @@ func restoreCommandDeps(t *testing.T) {
 		dockerComposeUp = oldDockerComposeUp
 		dockerComposeDown = oldDockerComposeDown
 		dockerContainerStatus = oldDockerContainerStatus
+		dockerComposeServiceStatus = oldDockerComposeServiceStatus
+		dockerComposeExecOutput = oldDockerComposeExecOutput
+		dockerComposeExecInteractive = oldDockerComposeExecInteractive
 		dockerContainerLogs = oldDockerContainerLogs
 		dockerExecCommand = oldDockerExecCommand
 		dockerRevertToPrevious = oldDockerRevertToPrevious
@@ -232,8 +238,11 @@ func TestExecutePreservesExitCode(t *testing.T) {
 
 	getSuite = func(name string) (suite.Suite, error) { return suite.Registry["boosting"], nil }
 	isInstalled = func(name string) (bool, error) { return true, nil }
-	dockerContainerStatus = func(ctx context.Context, name string) (string, error) { return "running", nil }
-	runDockerInteractive = func(ctx context.Context, args ...string) error { return mockExitError{code: 42} }
+	dockerComposeServiceStatus = func(ctx context.Context, composePath, service string) (string, error) { return "running", nil }
+	dockerComposeExecInteractive = func(ctx context.Context, composePath, service string, cmd ...string) error {
+		return mockExitError{code: 42}
+	}
+	dockerComposePath = func(name string) string { return "/tmp/" + name + ".compose.yml" }
 
 	exitCode := 0
 	exitFunc = func(code int) { exitCode = code }
@@ -469,13 +478,20 @@ func TestLabPrefersBoostingWhenBothInstalled(t *testing.T) {
 
 	loadState = func() (config.State, error) { return config.State{Installed: []string{"neural", "boosting"}}, nil }
 	isInstalled = func(name string) (bool, error) { return true, nil }
-	dockerContainerStatus = func(ctx context.Context, name string) (string, error) { return "running", nil }
-	runDockerOutput = func(ctx context.Context, args ...string) ([]byte, error) {
-		if strings.Join(args, " ") != "exec gradient-boost-lab jupyter server list --json" {
-			t.Fatalf("unexpected docker args %q", strings.Join(args, " "))
+	dockerComposeServiceStatus = func(ctx context.Context, composePath, service string) (string, error) { return "running", nil }
+	dockerComposeExecOutput = func(ctx context.Context, composePath, service string, cmd ...string) ([]byte, error) {
+		if composePath != "/tmp/boosting.compose.yml" {
+			t.Fatalf("unexpected compose path %q", composePath)
+		}
+		if service != "gradient-boost-lab" {
+			t.Fatalf("unexpected service %q", service)
+		}
+		if strings.Join(cmd, " ") != "jupyter server list --json" {
+			t.Fatalf("unexpected docker args %q", strings.Join(cmd, " "))
 		}
 		return []byte("{\"url\":\"http://localhost:8888/\",\"token\":\"abc123\"}\n"), nil
 	}
+	dockerComposePath = func(name string) string { return "/tmp/" + name + ".compose.yml" }
 	opened := ""
 	systemOpenURL = func(url string) error { opened = url; return nil }
 
@@ -527,9 +543,10 @@ func TestStatusAndListRenderCurrentState(t *testing.T) {
 			},
 		}, nil
 	}
-	dockerContainerStatus = func(ctx context.Context, name string) (string, error) { return "running", nil }
+	dockerComposeServiceStatus = func(ctx context.Context, composePath, service string) (string, error) { return "running", nil }
 	gpuDetectState = func() (gpu.GPUState, error) { return gpu.GPUStateNone, nil }
 	workspaceRoot = func() string { return t.TempDir() }
+	dockerComposePath = func(name string) string { return "/tmp/" + name + ".compose.yml" }
 
 	if err := runList(listCmd, nil); err != nil {
 		t.Fatalf("runList() error = %v", err)
@@ -734,7 +751,7 @@ func TestUpdateRollbackChangelogAndHelpers(t *testing.T) {
 	dockerComposeUp = func(ctx context.Context, path string, detach bool) error { return nil }
 	dockerComposeDown = func(ctx context.Context, path string) error { return nil }
 	dockerComposePath = func(name string) string { return "/tmp/" + name + ".compose.yml" }
-	dockerContainerStatus = func(ctx context.Context, name string) (string, error) { return "running", nil }
+	dockerComposeServiceStatus = func(ctx context.Context, composePath, service string) (string, error) { return "running", nil }
 
 	if err := runUpdate(updateCmd, []string{"boosting"}); err != nil {
 		t.Fatalf("runUpdate() error = %v", err)
@@ -778,18 +795,17 @@ func TestRemoveStopRestartAndShellCommands(t *testing.T) {
 	removeSuite = func(name string) error { return nil }
 	systemDeregisterPorts = func(s suite.Suite) error { return nil }
 	systemRegisterPorts = func(s suite.Suite) error { return nil }
-	dockerContainerStatus = func(ctx context.Context, name string) (string, error) { return "running", nil }
+	dockerComposeServiceStatus = func(ctx context.Context, composePath, service string) (string, error) { return "running", nil }
 
 	var interactiveCalls []string
-	runDockerInteractive = func(ctx context.Context, args ...string) error {
-		call := strings.Join(args, " ")
+	dockerComposeExecInteractive = func(ctx context.Context, composePath, service string, cmd ...string) error {
+		call := composePath + " " + service + " " + strings.Join(cmd, " ")
 		interactiveCalls = append(interactiveCalls, call)
 		if strings.Contains(call, " bash") {
 			return fmt.Errorf("bash missing")
 		}
 		return nil
 	}
-	runDockerOutput = func(ctx context.Context, args ...string) ([]byte, error) { return nil, nil }
 	dockerComposeDown = func(ctx context.Context, path string) error { return nil }
 	dockerComposeUp = func(ctx context.Context, path string, detach bool) error { return nil }
 

@@ -86,6 +86,10 @@ concave/
   docs/         user, admin, and contributor documentation
 ```
 
+Packaged installs also place the runtime suite templates under
+`/usr/local/share/concave/templates/` so the standalone binary can render
+Compose files outside the source tree.
+
 ## Roadmap
 
 The current line covers the v0.1 control-plane foundation. v0.2 adds environment intelligence through `concave-resolver`, v0.3 adds fleet discovery through `gradient-mesh`, v0.4 expands compute allocation, and v0.5 adds the dedicated `gradient-lab` collaboration layer.

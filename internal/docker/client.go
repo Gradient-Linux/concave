@@ -158,6 +158,46 @@ func ComposeDown(ctx context.Context, composePath string) error {
 	return nil
 }
 
+// ComposeServiceStatus returns the status of a compose-managed service.
+func ComposeServiceStatus(ctx context.Context, composePath, service string) (string, error) {
+	ctx, cancel := withDefaultTimeout(ctx)
+	defer cancel()
+
+	containerID, err := composeServiceContainerID(ctx, composePath, service)
+	if err != nil {
+		return "error", err
+	}
+	if containerID == "" {
+		return "not found", nil
+	}
+	return ContainerStatus(ctx, containerID)
+}
+
+// ComposeExecOutput executes a non-interactive command inside a compose-managed service.
+func ComposeExecOutput(ctx context.Context, composePath, service string, cmd ...string) ([]byte, error) {
+	ctx, cancel := withDefaultTimeout(ctx)
+	defer cancel()
+
+	command := append([]string{"compose", "-f", composePath, "exec", "-T", service}, cmd...)
+	out, err := commandRunner.RunCommand(ctx, "docker", command...)
+	if err != nil {
+		return out, fmt.Errorf("docker compose exec %s %s: %w", composePath, service, err)
+	}
+	return out, nil
+}
+
+// ComposeExecInteractive executes an interactive command inside a compose-managed service.
+func ComposeExecInteractive(ctx context.Context, composePath, service string, cmd ...string) error {
+	ctx, cancel := withDefaultTimeout(ctx)
+	defer cancel()
+
+	command := append([]string{"compose", "-f", composePath, "exec", service}, cmd...)
+	if err := runInteractiveCommand(ctx, "docker", command...); err != nil {
+		return fmt.Errorf("docker compose exec %s %s: %w", composePath, service, err)
+	}
+	return nil
+}
+
 // ContainerStatus returns a container's current status.
 func ContainerStatus(ctx context.Context, name string) (string, error) {
 	ctx, cancel := withDefaultTimeout(ctx)
@@ -214,4 +254,21 @@ func withTimeout(ctx context.Context, timeout time.Duration) (context.Context, c
 func isMissingContainer(err error, out []byte) bool {
 	text := strings.ToLower(err.Error() + " " + string(out))
 	return strings.Contains(text, "no such object") || strings.Contains(text, "no such container")
+}
+
+func composeServiceContainerID(ctx context.Context, composePath, service string) (string, error) {
+	out, err := commandRunner.RunCommand(ctx, "docker", "compose", "-f", composePath, "ps", "-q", service)
+	if err != nil {
+		text := strings.ToLower(err.Error() + " " + string(out))
+		if strings.Contains(text, "no container found") || strings.Contains(text, "no such service") {
+			return "", nil
+		}
+		return "", fmt.Errorf("docker compose ps %s %s: %w", composePath, service, err)
+	}
+
+	lines := strings.Fields(strings.TrimSpace(string(out)))
+	if len(lines) == 0 {
+		return "", nil
+	}
+	return lines[0], nil
 }

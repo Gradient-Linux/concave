@@ -59,6 +59,9 @@ var (
 	dockerComposeUp              = docker.ComposeUp
 	dockerComposeDown            = docker.ComposeDown
 	dockerContainerStatus        = docker.ContainerStatus
+	dockerComposeServiceStatus   = docker.ComposeServiceStatus
+	dockerComposeExecOutput      = docker.ComposeExecOutput
+	dockerComposeExecInteractive = docker.ComposeExecInteractive
 	dockerContainerLogs          = docker.ContainerLogs
 	dockerExecCommand            = docker.Exec
 	dockerRevertToPrevious       = docker.RevertToPrevious

@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"os"
 	"os/user"
-	"path/filepath"
 	"runtime"
 	"strings"
 
 	"github.com/Gradient-Linux/concave/internal/config"
 	"github.com/Gradient-Linux/concave/internal/logx"
+	"github.com/Gradient-Linux/concave/internal/templatepath"
 	"github.com/Gradient-Linux/concave/internal/workspace"
 )
 
@@ -80,22 +80,17 @@ func renderCompose(name string) ([]byte, error) {
 
 func readTemplate(name string) ([]byte, error) {
 	filename := name + ".compose.yml"
-	candidates := []string{filepath.Join("templates", filename)}
-
+	callerFile := ""
 	if _, sourceFile, _, ok := runtime.Caller(0); ok {
-		repoRoot := filepath.Clean(filepath.Join(filepath.Dir(sourceFile), "..", ".."))
-		candidates = append(candidates, filepath.Join(repoRoot, "templates", filename))
+		callerFile = sourceFile
 	}
-
-	if executable, err := os.Executable(); err == nil {
-		candidates = append(candidates, filepath.Join(filepath.Dir(executable), "templates", filename))
-	}
+	candidates := templatepath.Candidates(filename, callerFile)
 
 	var (
 		failures []string
 		missing  = true
 	)
-	for _, candidate := range uniquePaths(candidates) {
+	for _, candidate := range candidates {
 		data, err := readTemplateFile(candidate)
 		if err == nil {
 			logx.Debug("compose template selected", "suite", name, "path", candidate)
@@ -157,19 +152,6 @@ func validateCompose(path string) error {
 		return fmt.Errorf("docker compose config %s: %w", path, err)
 	}
 	return nil
-}
-
-func uniquePaths(paths []string) []string {
-	seen := make(map[string]struct{}, len(paths))
-	result := make([]string, 0, len(paths))
-	for _, path := range paths {
-		if _, ok := seen[path]; ok {
-			continue
-		}
-		seen[path] = struct{}{}
-		result = append(result, path)
-	}
-	return result
 }
 
 func gradientUser() string {

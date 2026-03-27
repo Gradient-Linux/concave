@@ -2,7 +2,9 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/Gradient-Linux/concave/internal/suite"
@@ -53,7 +55,30 @@ func composeCleanup(name string) func() {
 
 func waitForHealthy(ctx context.Context, s suite.Suite) error {
 	ui.Info("Health", "Waiting for "+s.Name+" to be healthy...")
-	return wrapDockerError(waitHealthy(ctx, s, 60*time.Second, func(results []suite.HealthResult) {
+	deadlineCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	defer cancel()
+
+	check := func() ([]suite.HealthResult, bool, error) {
+		results := make([]suite.HealthResult, 0, len(s.Containers))
+		allRunning := true
+		composePath := dockerComposePath(s.Name)
+		for _, container := range s.Containers {
+			status, err := dockerComposeServiceStatus(deadlineCtx, composePath, container.Name)
+			if err != nil {
+				status = "error"
+			}
+			if status != "running" {
+				allRunning = false
+			}
+			results = append(results, suite.HealthResult{
+				Container: container.Name,
+				Status:    status,
+			})
+		}
+		return results, allRunning, nil
+	}
+
+	printProgress := func(results []suite.HealthResult) {
 		for _, result := range results {
 			switch result.Status {
 			case "running":
@@ -64,5 +89,46 @@ func waitForHealthy(ctx context.Context, s suite.Suite) error {
 				ui.Warn(result.Container, result.Status)
 			}
 		}
-	}))
+	}
+
+	results, ok, err := check()
+	if err != nil {
+		return wrapDockerError(err)
+	}
+	printProgress(results)
+	if ok {
+		return nil
+	}
+
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-deadlineCtx.Done():
+			return wrapDockerError(fmt.Errorf("%s", healthTimeoutError(s, 60*time.Second, results)))
+		case <-ticker.C:
+			results, ok, err = check()
+			if err != nil {
+				return wrapDockerError(err)
+			}
+			printProgress(results)
+			if ok {
+				return nil
+			}
+		}
+	}
+}
+
+func healthTimeoutError(s suite.Suite, timeout time.Duration, results []suite.HealthResult) string {
+	lines := make([]string, 0, len(results))
+	for _, result := range results {
+		if result.Status == "running" {
+			continue
+		}
+		lines = append(lines, fmt.Sprintf("%s not running after %s\n   Check logs: concave logs %s --service %s", result.Container, timeout.Round(time.Second), s.Name, result.Container))
+	}
+	if len(lines) == 0 {
+		return fmt.Sprintf("suite %s did not become healthy after %s", s.Name, timeout.Round(time.Second))
+	}
+	return strings.Join(lines, "\n")
 }
