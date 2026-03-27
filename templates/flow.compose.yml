@@ -8,7 +8,15 @@ services:
       gradient.managed: "true"
       gradient.suite: "flow"
       gradient.user: "{{GRADIENT_USER}}"
-    command: ["mlflow", "ui", "--host", "0.0.0.0", "--port", "5000", "--backend-store-uri", "/mlruns"]
+    command:
+      - "sh"
+      - "-lc"
+      - >
+        python -c "import wrapt,sys; sys.exit(0 if hasattr(wrapt, 'AdapterFactory') else 1)"
+        >/dev/null 2>&1 ||
+        python -m pip install --quiet --no-cache-dir --force-reinstall wrapt==1.16.0
+        >/tmp/wrapt-install.log 2>&1;
+        exec mlflow ui --host 0.0.0.0 --port 5000 --backend-store-uri /mlruns
     restart: unless-stopped
     ports:
       - "5000:5000"
