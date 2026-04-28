@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Gradient-Linux/concave/internal/auth"
+	"github.com/Gradient-Linux/concave/internal/lab"
 )
 
 // Config holds the API server runtime configuration.
@@ -24,6 +25,7 @@ type App struct {
 	workspaceRoot string
 	tokens        auth.TokenConfig
 	jobs          *JobManager
+	lab           *lab.Manager
 	mux           *http.ServeMux
 }
 
@@ -37,10 +39,25 @@ func New(cfg Config) *App {
 		workspaceRoot: cfg.WorkspaceRoot,
 		tokens:        cfg.Tokens,
 		jobs:          NewJobManager(),
+		lab:           buildLabManager(),
 		mux:           http.NewServeMux(),
 	}
 	app.routes()
 	return app
+}
+
+func buildLabManager() *lab.Manager {
+	registry := lab.NewRegistry()
+	registry.Register(lab.NewDockerDriver(lab.DockerDriverConfig{}))
+	store, err := lab.NewStore()
+	if err != nil {
+		store, _ = lab.NewStoreAt("")
+	}
+	storage, _ := lab.LoadStorage()
+	_ = lab.EnsureTierDirs(storage)
+	mgr := lab.NewManager(registry, store, storage)
+	mgr.SetAuditWriter(lab.NewFileAuditWriter())
+	return mgr
 }
 
 func (a *App) Handler() http.Handler {
@@ -52,6 +69,10 @@ func (a *App) ListenAndServe(ctx context.Context) error {
 		Addr:              a.addr,
 		Handler:           a.Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
+	}
+
+	if a.lab != nil {
+		go a.lab.RunReaper(ctx, 30*time.Second)
 	}
 
 	go func() {
@@ -98,6 +119,10 @@ func (a *App) routes() {
 	a.mux.Handle("/api/v1/suites/", a.authMiddleware(RoleMiddleware(auth.RoleViewer, http.HandlerFunc(a.handleSuiteSubroutes))))
 	a.mux.Handle("/api/v1/terminal/container/", a.authMiddleware(RoleMiddleware(auth.RoleDeveloper, http.HandlerFunc(a.handleContainerTerminal))))
 	a.mux.Handle("/api/v1/terminal/host", a.authMiddleware(RoleMiddleware(auth.RoleAdmin, http.HandlerFunc(a.handleHostTerminal))))
+	a.mux.Handle("/api/v1/lab/envs", a.authMiddleware(RoleMiddleware(auth.RoleViewer, http.HandlerFunc(a.handleLabEnvs))))
+	a.mux.Handle("/api/v1/lab/envs/", a.authMiddleware(RoleMiddleware(auth.RoleViewer, http.HandlerFunc(a.handleLabEnvSubroutes))))
+	a.mux.Handle("/api/v1/lab/storage", a.authMiddleware(RoleMiddleware(auth.RoleViewer, http.HandlerFunc(a.handleLabStorage))))
+	a.mux.Handle("/api/v1/lab/drivers", a.authMiddleware(RoleMiddleware(auth.RoleViewer, http.HandlerFunc(a.handleLabDrivers))))
 }
 
 func (a *App) issueSession(w http.ResponseWriter, username string, role auth.Role) (auth.Claims, string, error) {
